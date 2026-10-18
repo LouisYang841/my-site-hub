@@ -22,3 +22,11 @@
 ## 工具列表
 
 手的大小比较 / 脚的大小比较 / 3D身高比较 / 视线差 / 散步 / 男友衬衫 / 共伞 / 围巾 / 拥抱 / 同眠 / 壁咚 / 地板咚 / 床咚 / 亲吻 / 膝枕 / 膝抱 / 公主抱 / 骑肩 / 背背 / 装箱 / 跨坐 / 落座 / 哄睡 / 合照 / 大头贴 / 居家约会 / 书架 / 求婚
+
+## 声明 / Declarations
+
+**中文（简体）**：本仓库是 qwertyaz111 制作的「体格差ツール・シミュレーター」系列的非官方中文汉化版，仅供学习交流使用，禁止商用。原作品版权归 qwertyaz111 所有，如原作者提出要求将立即下线。
+
+**日本語**：このリポジトリは、qwertyaz111 さんが制作された「体格差ツール・シミュレーター」シリーズの非公式中国語版です。学習・交流目的のみに使用し、商用利用はご遠慮ください。オリジナル作品の著作権は qwertyaz111 さんに帰属します。原作者から要請があった場合は直ちに削除いたします。
+
+**English**: This repository is an unofficial Simplified Chinese localization of the "Taikakusa (Body-Size Difference) Simulator" series created by qwertyaz111. For personal/educational use only — commercial use is prohibited. All rights to the original works belong to qwertyaz111. It will be taken down immediately upon the original author's request.
