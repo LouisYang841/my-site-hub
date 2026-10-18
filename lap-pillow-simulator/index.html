@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🦵膝枕模拟器</title>
+    <style>
+        :root { --panel-width: 300px; }
+        body { margin: 0; font-family: 'Helvetica Neue', Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; background: #ffffff; overflow: hidden; }
+        
+        /* #ui-panel の更新 */
+        #ui-panel {
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            width: var(--panel-width);
+            max-height: calc(100vh - 20px);
+            max-height: calc(100dvh - 20px); /* 可変ビューポート対応 */
+            background: rgba(255, 255, 255, 0.95); 
+            padding: 15px; 
+            padding-bottom: 40px; 
+            border-radius: 15px; 
+            z-index: 100; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch; 
+            touch-action: pan-y; 
+            border: 1px solid rgba(255,255,255,0.3); 
+            backdrop-filter: blur(10px); 
+            -webkit-backdrop-filter: blur(10px);
+            box-sizing: border-box;
+            transition: all 0.2s ease-out;
+        }
+
+        #canvas-container { width: 100vw; height: 100vh; cursor: move; touch-action: none; }
+
+        @media screen and (max-width: 480px) { 
+            :root { --panel-width: calc(100vw - 20px); }
+            #ui-panel { left: 10px; right: 10px; }
+        }
+        
+        @media screen and (orientation: landscape) and (max-height: 500px) {
+            :root { --panel-width: 260px; }
+            #ui-panel { top: 5px; left: 5px; padding: 10px; max-height: calc(100vh - 10px); }
+            .app-title { font-size: 1.1rem; }
+            .input-group { padding: 8px; margin-bottom: 5px; }
+        }
+
+        /* ヘッダーをパネル上部に固定（スクロールしても上に張り付く） */
+        .panel-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            cursor: pointer; 
+            user-select: none; 
+            gap: 10px; 
+            position: sticky; /* パネル内スクロール時も上に固定 */
+            top: -15px;       /* padding 分を相殺 */
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 0;
+            margin: -15px -15px 10px -15px;
+            padding-left: 15px;
+            padding-right: 15px;
+            z-index: 10;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        #toggle-text { 
+            font-size: 12px; 
+            font-weight: bold; 
+            color: #666; 
+            background: #eee; 
+            padding: 4px 10px; 
+            border-radius: 10px; 
+            white-space: nowrap; 
+        }
+        .collapsed #ui-content { display: none; }
+
+        .app-title { 
+            font-size: 1.2rem; 
+            margin: 0; 
+            color: #333; 
+            font-weight: bold; 
+            white-space: nowrap; 
+        }
+        .app-description { font-size: 11px; color: #777; margin-top: 8px; margin-bottom: 5px; line-height: 1.5; text-align: center; }
+        
+        .input-group { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; margin-bottom: 10px; }
+        .group-mode { background: #f5f5f5; border: 1px solid #e0e0e0; }
+        .group-a { background: #fff5f0; border: 1px solid #ffe0d0; }
+        .group-b { background: #f0f7ff; border: 1px solid #d0e7ff; }
+        .group-layout { background: #f9f9f9; border: 1px solid #eee; }
+        .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+        .section-header strong { font-size: 15px; color: #444; }
+        .input-row { display: flex; gap: 8px; align-items: flex-end; width: 100%; }
+        .input-item { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .hint { font-size: 10px; color: #999; margin-bottom: 2px; font-weight: bold; }
+        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; background: white; color: #333; width: 100%; box-sizing: border-box; }
+
+        .radio-switch { display: flex; gap: 4px; background: #eee; padding: 3px; border-radius: 8px; margin-top: 2px; }
+        .radio-switch label { flex: 1; text-align: center; font-size: 11px; font-weight: bold; padding: 6px 0; border-radius: 6px; cursor: pointer; color: #666; transition: 0.2s; user-select: none; }
+        .radio-switch input { display: none; }
+        .radio-switch input:checked + label { background: white; color: #333; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] { -moz-appearance: textfield; }
+
+        .color-picker { width: 100%; height: 38px; border: 2px solid #999; border-radius: 4px; cursor: pointer; padding: 0; background: none; appearance: none; -webkit-appearance: none; }
+        
+        .switch-btn { width: 100%; padding: 12px; background: #333; color: white; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; -webkit-tap-highlight-color: transparent; margin-bottom: 10px; }
+        .switch-btn:active { background: #000; transform: scale(0.98); }
+        .swap-btn { margin-bottom: 5px; }
+
+        .share-btn { 
+            width: 100%; padding: 12px; background: #000; color: white; border: none; border-radius: 10px; 
+            font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; 
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            text-decoration: none; margin-top: 10px;
+        }
+        .share-btn:active { transform: scale(0.98); opacity: 0.8; }
+
+        .other-tools-link { margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 10px; text-align: center; }
+        .other-tools-link a { text-decoration: none; color: #333; font-size: 12px; font-weight: bold; border: 2px solid #333; padding: 8px 15px; border-radius: 30px; display: inline-block; transition: 0.3s; margin: 4px; }
+        .other-tools-link a:hover { background: #333; color: #fff; }
+
+        .usage-notes { font-size: 10px; color: #999; margin-top: 12px; line-height: 1.5; text-align: center; }
+
+        .info-box { background: #ffffff; padding: 15px; border-radius: 12px; margin-top: 12px; border: 1px solid #eee; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
+        .info-row { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; }
+        .info-row:not(:last-child) { border-bottom: 1px dashed #eee; margin-bottom: 4px; }
+        .info-label { color: #555; font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 4px; }
+        .info-value { font-weight: 800; font-size: 18px; color: #2c3e50; font-variant-numeric: tabular-nums; }
+        .unit { font-size: 11px; margin-left: 3px; color: #7f8c8d; font-weight: normal; }
+        
+        #view-label { 
+            position: absolute; 
+            bottom: 20px; 
+            right: 15px; 
+            background: rgba(0,0,0,0.7); 
+            color: white; 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            z-index: 90; 
+            pointer-events: none; 
+        }
+        .crosshair { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; border: 2px solid rgba(0,0,0,0.15); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+
+        #ui-panel.collapsed {
+            max-height: none !important;
+            padding: 10px 15px !important;
+            overflow: hidden !important;
+            width: auto;
+            max-width: calc(100vw - 20px);
+        }
+
+        @media screen and (max-width: 480px) { 
+            #ui-panel.collapsed { right: auto; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-panel">
+    <div class="panel-header" onclick="togglePanel()">
+        <h1 class="app-title">🦵膝枕模拟器</h1>
+        <span id="toggle-text">关闭</span>
+    </div>
+
+    <div id="ui-content">
+        <p class="app-description">模拟膝枕的体格差。</p>
+
+        <div class="input-group group-a">
+            <div class="section-header"><strong>A（躺在地上的人）</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameA" value="A" placeholder="名字A" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.6;"><span class="hint">性别</span><select id="genderA" onchange="updateScene()"><option value="male">男</option><option value="female" selected>女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightA" value="158.0" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.35;"><span class="hint">色</span><input type="color" id="colorA" class="color-picker" value="#ffcc99" oninput="updateScene()" onchange="updateScene()"></div>
+            </div>
+        </div>
+
+        <div class="input-group group-b" id="panel-group-b">
+            <div class="section-header"><strong>B（正坐的人）</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameB" value="B" placeholder="名字B" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.6;"><span class="hint">性别</span><select id="genderB" onchange="updateScene()"><option value="male" selected>男</option><option value="female">女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightB" value="171.5" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.35;"><span class="hint">色</span><input type="color" id="colorB" class="color-picker" value="#ffad60" oninput="updateScene()" onchange="updateScene()"></div>
+            </div>
+        </div>
+
+        <div class="input-group group-layout">
+            <div class="section-header"><strong>摆放设置</strong></div>
+            <div class="input-item" style="margin-bottom: 8px;">
+                <span class="hint">正坐者的朝向・位置</span>
+                <div class="radio-switch">
+                    <!-- 1. 从左侧膝枕 -->
+                    <input type="radio" id="side-left" name="chairSide" value="left" checked onchange="updateScene()">
+                    <label for="side-left">从左侧膝枕</label>
+
+                    <!-- 2. 正上方膝枕 -->
+                    <input type="radio" id="side-straight" name="chairSide" value="straight" onchange="updateScene()">
+                    <label for="side-straight">正上方膝枕</label>
+
+                    <!-- 3. 从右侧膝枕 -->
+                    <input type="radio" id="side-right" name="chairSide" value="right" onchange="updateScene()">
+                    <label for="side-right">从右侧膝枕</label>
+                </div>
+            </div>
+        </div>
+
+        <div style="padding: 0 5px;">
+            <button class="switch-btn swap-btn" id="btn-swap" onclick="swapAB()">⇄ 交换A与B</button>
+            <button class="switch-btn" onclick="switchView()">🔄 切换视角</button>
+        </div>
+        
+        <div id="info-container">
+            <div class="info-box" id="info"></div>
+            <button class="share-btn" onclick="shareToX()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg> 分享结果
+            </button>
+            <div class="other-tools-link">
+                <p style="font-size: 10px; color: #888; margin-bottom: 8px;">也来看看这些❣🤩</p>
+                <a href="../">体格差模拟器一览</a>
+            </div>
+            <div class="usage-notes">
+                截图投稿、加工、描图等请随意享用。<br>
+                ※请勿用于营利或商业用途。
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="view-label"></div>
+<div class="crosshair" id="crosshair" style="display:none;"></div>
+<div id="canvas-container"></div>
+
+<script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
+
+    let scene, camera, renderer, clock;
+    let personA, personB, furnitureGroup, stageGroup;
+    let currentView = '3rd';
+    let rotation = { x: 0, y: 0 }, camDist = 2.5, isDragging = false, previousTouch = null;
+
+    const BASE_HEIGHT = 0.0;
+
+    // 入力フォームからフォーカスが外れた際に、パネルのスクロール位置を上部へリセットする
+    document.querySelectorAll('#ui-panel input, #ui-panel select').forEach(element => {
+        element.addEventListener('blur', () => {
+            const panel = document.getElementById('ui-panel');
+            if (panel) {
+                panel.scrollTop = 0;
+            }
+            // iOS Safari等の画面全体のズレ防止策
+            window.scrollTo(0, 0);
+        });
+    });
+
+    // 安全に数値を取り出すユーティリティ（NaN対策）
+    function getSafeNumber(elementId, fallback) {
+        const el = document.getElementById(elementId);
+        if (!el) return fallback;
+        const val = parseFloat(el.value);
+        return isNaN(val) || val <= 0 ? fallback : val;
+    }
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+        camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1000);
+        camera.rotation.order = 'YXZ';
+        
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 2.5));
+        scene.add(new THREE.GridHelper(200, 400, 0xeeeeee, 0xf5f5f5));
+
+        stageGroup = new THREE.Group();
+        scene.add(stageGroup);
+
+        furnitureGroup = new THREE.Group();
+        stageGroup.add(furnitureGroup);
+
+        clock = new THREE.Clock();
+        setupControls();
+
+        window.addEventListener('resize', onWindowResize);
+        
+        window.updateScene = updateScene;
+        window.switchView = switchView;
+        window.swapAB = swapAB;
+        window.shareToX = shareToX;
+        window.togglePanel = () => {
+            const panel = document.getElementById('ui-panel');
+            const text = document.getElementById('toggle-text');
+            panel.classList.toggle('collapsed');
+            text.innerText = panel.classList.contains('collapsed') ? '打开' : '关闭';
+        };
+
+        updateScene();
+        animate();
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function swapAB() {
+        const fields = ['name', 'gender', 'height', 'color'];
+        fields.forEach(field => {
+            const elA = document.getElementById(field + 'A');
+            const elB = document.getElementById(field + 'B');
+            if (elA && elB) {
+                const tmp = elA.value;
+                elA.value = elB.value;
+                elB.value = tmp;
+            }
+        });
+        updateScene();
+    }
+
+    function buildFurniture() {
+        while(furnitureGroup.children.length > 0){
+            furnitureGroup.remove(furnitureGroup.children[0]);
+        }
+    }
+
+    function createMannequinLying(color, heightCm, gender, name) {
+        const group = new THREE.Group();
+        const h = heightCm * 0.01;
+        const bodyMat = new THREE.MeshPhongMaterial({ color: color, transparent: true, opacity: 0.85 });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+
+        const headH = h * 0.13, neckH = h * 0.05, torsoH = h * 0.37, legH = h * 0.45;
+        const torsoW = (gender === 'male' ? 0.26 : 0.21) * (h/1.7);
+        const torsoDepth = torsoW * 0.5;
+
+        const bodyGroup = new THREE.Group();
+        bodyGroup.rotation.x = -Math.PI / 2; 
+
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoW, torsoH, torsoDepth), bodyMat);
+        torso.position.y = torsoH * 0.5;
+        bodyGroup.add(torso);
+
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(headH*0.3, headH*0.3, neckH, 16), bodyMat);
+        neck.position.y = torsoH + (neckH * 0.5);
+        bodyGroup.add(neck);
+
+        const headBox = new THREE.Group();
+        headBox.position.y = torsoH + neckH + (headH * 0.3);
+
+        const head = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.8, 16, 16), bodyMat);
+        head.position.y = (headH * 0.5) - (headH * 0.3);
+        headBox.add(head);
+        [-1, 1].forEach(side => {
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.12, 12, 12), eyeMat);
+            eye.position.set(side * (headH * 0.28), (headH * 0.5) - (headH * 0.3), (headH * 0.7));
+            headBox.add(eye);
+        });
+        bodyGroup.add(headBox);
+        group.headParts = headBox;
+
+        group.arms = [];
+        [-1, 1].forEach(side => {
+            const anchor = new THREE.Group();
+            anchor.position.set(side * (torsoW * 0.6), torsoH - (torsoW * 0.15), 0);
+            anchor.rotation.z = side * 0.087;
+
+            const armLen = h * 0.38;
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.3, armLen, torsoW*0.3), bodyMat);
+            mesh.position.y = -armLen * 0.5;
+            anchor.add(mesh);
+            bodyGroup.add(anchor);
+            group.arms.push(anchor);
+        });
+
+        group.legNodes = [];
+        [-1, 1].forEach(side => {
+            const legAnchor = new THREE.Group();
+            legAnchor.position.set(side * (torsoW * 0.25), 0, 0);
+
+            const legMesh = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.4, legH, torsoW*0.4), bodyMat);
+            legMesh.position.y = -legH * 0.5;
+            legAnchor.add(legMesh);
+
+            bodyGroup.add(legAnchor);
+            group.legNodes.push(legAnchor);
+        });
+
+        group.add(bodyGroup);
+
+        const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128;
+        const ctx = canvas.getContext('2d'); ctx.font = "bold 45px sans-serif"; ctx.fillStyle = "#333"; ctx.textAlign = "center";
+        const displayName = name || 'A';
+        ctx.fillText(`${displayName} (${heightCm.toFixed(1)}cm)`, 256, 64);
+        const spriteMaterial = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(1.5, 0.38, 1); 
+        sprite.position.set(0, 0.5, -0.7); 
+        group.add(sprite);
+        group.nameTag = sprite;
+
+        group.userData = { height: h, torsoW: torsoW, torsoH: torsoH, neckH: neckH, headH: headH, torsoDepth: torsoDepth, legH: legH };
+        return group;
+    }
+
+    function createMannequinSeiza(color, heightCm, gender, name) {
+        const group = new THREE.Group();
+        const h = heightCm * 0.01;
+        const bodyMat = new THREE.MeshPhongMaterial({ color: color, transparent: true, opacity: 0.85 });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+
+        const headH = h * 0.13, neckH = h * 0.05, torsoH = h * 0.37, legH = h * 0.45;
+        const torsoW = (gender === 'male' ? 0.26 : 0.21) * (h/1.7);
+        const torsoDepth = torsoW * 0.5;
+
+        const bodyGroup = new THREE.Group();
+        bodyGroup.position.y = BASE_HEIGHT + torsoDepth * 0.5;
+        
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoW, torsoH, torsoDepth), bodyMat);
+        torso.position.y = torsoH * 0.5;
+        bodyGroup.add(torso);
+
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(headH*0.3, headH*0.3, neckH, 16), bodyMat);
+        neck.position.y = torsoH + (neckH * 0.5);
+        bodyGroup.add(neck);
+
+        const localEyeY = torsoH + neckH + (headH * 0.3);
+        const headBox = new THREE.Group();
+        headBox.position.y = localEyeY;
+        const head = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.8, 16, 16), bodyMat);
+        head.position.y = (headH * 0.5) - (headH * 0.3);
+        headBox.add(head);
+        [-1, 1].forEach(side => {
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.12, 12, 12), eyeMat);
+            eye.position.set(side * (headH * 0.28), (headH * 0.5) - (headH * 0.3), (headH * 0.7));
+            headBox.add(eye);
+        });
+        bodyGroup.add(headBox);
+        group.headParts = headBox;
+
+        group.arms = [];
+        [-1, 1].forEach(side => {
+            const anchor = new THREE.Group();
+            anchor.position.set(side * (torsoW * 0.6), torsoH - (torsoW * 0.15), 0);
+            const armLen = h * 0.38;
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.3, armLen, torsoW*0.3), bodyMat);
+            mesh.position.y = -armLen * 0.5;
+            anchor.add(mesh);
+            bodyGroup.add(anchor);
+            group.arms.push(anchor);
+            anchor.rotation.set(0, 0, 0); 
+        });
+
+        const partLen = legH * 0.5;
+        [-1, 1].forEach(side => {
+            const lowerLeg = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.4, torsoW*0.4, partLen), bodyMat);
+            lowerLeg.position.set(side * (torsoW * 0.25), -torsoDepth * 0.5 + (torsoW * 0.2), partLen * 0.5);
+            bodyGroup.add(lowerLeg);
+
+            const upperLeg = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.4, torsoW*0.4, partLen), bodyMat);
+            upperLeg.position.set(side * (torsoW * 0.25), -torsoDepth * 0.5 + (torsoW * 0.2) + (torsoW * 0.4), partLen * 0.5);
+            bodyGroup.add(upperLeg);
+        });
+
+        group.add(bodyGroup);
+
+        const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128;
+        const ctx = canvas.getContext('2d'); ctx.font = "bold 45px sans-serif"; ctx.fillStyle = "#333"; ctx.textAlign = "center";
+        const displayName = name || 'B';
+        ctx.fillText(`${displayName} (${heightCm.toFixed(1)}cm)`, 256, 64);
+        const spriteMaterial = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(1.5, 0.38, 1); 
+        sprite.position.y = BASE_HEIGHT + (torsoDepth * 0.5) + localEyeY + headH + 0.3; 
+        group.add(sprite);
+        group.nameTag = sprite;
+
+        group.userData = { 
+            height: h, 
+            eyeY: BASE_HEIGHT + (torsoDepth * 0.5) + localEyeY, 
+            role: 'B', 
+            torsoW: torsoW,
+            kneeOffset: new THREE.Vector3(0, BASE_HEIGHT + (torsoDepth * 0.5) + (torsoW * 0.2) + (torsoW * 0.4) + (torsoW * 0.2), partLen * 0.7)
+        };
+        return group;
+    }
+
+    function updateScene() {
+        const hA = getSafeNumber('heightA', 158.0);
+        const hB = getSafeNumber('heightB', 171.5);
+
+        const sideLeftEl = document.getElementById('side-left');
+        const sideStraightEl = document.getElementById('side-straight');
+        const isLeftSide = sideLeftEl ? sideLeftEl.checked : true;
+        const isStraight = sideStraightEl ? sideStraightEl.checked : false;
+
+        if(personA) stageGroup.remove(personA);
+        if(personB) stageGroup.remove(personB);
+        
+        buildFurniture();
+
+        const colorA = document.getElementById('colorA')?.value || '#ffcc99';
+        const colorB = document.getElementById('colorB')?.value || '#ffad60';
+        const genderA = document.getElementById('genderA')?.value || 'female';
+        const genderB = document.getElementById('genderB')?.value || 'male';
+        const nameA = document.getElementById('nameA')?.value || 'A';
+        const nameB = document.getElementById('nameB')?.value || 'B';
+
+        personA = createMannequinLying(colorA, hA, genderA, nameA);
+        personB = createMannequinSeiza(colorB, hB, genderB, nameB);
+        
+        personA.headParts.rotation.set(-0.35, 0, 0); 
+        personB.headParts.rotation.set(0.45, 0, 0);  
+
+        personB.position.set(0, 0, 0);
+        const bRotY = -Math.PI / 2;
+        personB.rotation.set(0, bRotY, 0);
+
+        stageGroup.add(personB);
+        stageGroup.add(personA);
+
+        const kneePos = personB.userData.kneeOffset.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), bRotY).add(personB.position);
+
+        personA.position.set(0, 0, 0);
+        if (isStraight) {
+            personA.rotation.order = 'YXZ';
+            personA.rotation.set(0, -Math.PI / 2, 0);
+            personA.nameTag.position.set(0, 0.5, 0.7);
+        } else {
+            personA.rotation.set(0, isLeftSide ? 0 : Math.PI, 0);
+        }
+
+        const torsoDepthA = personA.userData.torsoDepth;
+        const torsoHA = personA.userData.torsoH;
+        const neckHA = personA.userData.neckH;
+        const headHA = personA.userData.headH;
+
+        const headRadius = headHA * 0.4;
+        const targetHeadY = kneePos.y + headRadius * 0.5;
+        const groundCenterY = BASE_HEIGHT + torsoDepthA * 0.5;
+        const spineLength = Math.max(0.001, torsoHA + neckHA + headHA * 0.5);
+
+        const heightDiff = targetHeadY - groundCenterY;
+        const ratio = Math.min(1.0, Math.max(-1.0, heightDiff / spineLength));
+        const pitchAngle = Math.asin(ratio);
+
+        if (isStraight) {
+            personA.rotation.x = pitchAngle;
+        } else if (isLeftSide) {
+            personA.rotation.x = pitchAngle;
+        } else {
+            personA.rotation.x = -pitchAngle;
+        }
+
+        if (personA.legNodes) {
+            personA.legNodes.forEach((legNode, idx) => {
+                const zSign = (idx === 0) ? -1 : 1;
+                legNode.rotation.x = -pitchAngle; 
+                legNode.rotation.z = zSign * 0.087; 
+            });
+        }
+
+        stageGroup.updateMatrixWorld(true);
+
+        const headWorldPos = new THREE.Vector3();
+        personA.headParts.getWorldPosition(headWorldPos);
+
+        const diffX = kneePos.x - headWorldPos.x;
+        const diffZ = kneePos.z - headWorldPos.z;
+        personA.position.x += diffX;
+        personA.position.z += diffZ;
+
+        personA.position.y = BASE_HEIGHT + (torsoDepthA * 0.5);
+
+        if (personA && personB) {
+            personA.headParts.visible = (currentView !== 'A');
+            personA.nameTag.visible = (currentView !== 'A');
+            personB.headParts.visible = (currentView !== 'B');
+            personB.nameTag.visible = (currentView !== 'B');
+        }
+
+        const nA = nameA || 'A', nB = nameB || 'B';
+        const labelEl = document.getElementById('view-label');
+        if (labelEl) {
+            labelEl.innerText = currentView === 'A' ? nA+' 的视角' : (currentView === 'B' ? nB+' 的视角' : '第三人称视角');
+        }
+        
+        const infoEl = document.getElementById('info');
+        if (infoEl) {
+            infoEl.innerHTML = `
+                <div class="info-row"><span class="info-label">📏 身高差</span><span class="info-value">${Math.abs(hA-hB).toFixed(1)}<span class="unit">cm</span></span></div>
+                <div class="info-row"><span class="info-label">👀 视线高度差</span><span class="info-value">${(Math.abs((personB.userData.eyeY) - (BASE_HEIGHT + 0.1)) * 100).toFixed(1)}<span class="unit">cm</span></span></div>
+            `;
+        }
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const centerPos = new THREE.Vector3(0, BASE_HEIGHT + 0.3, 0);
+        
+        if (currentView === '3rd') {
+            camera.position.set(
+                centerPos.x + Math.sin(rotation.y) * camDist * Math.cos(rotation.x), 
+                centerPos.y + Math.sin(rotation.x) * camDist, 
+                centerPos.z + Math.cos(rotation.y) * camDist * Math.cos(rotation.x)
+            );
+            camera.lookAt(centerPos);
+        } else if (currentView === 'A') {
+            const headWorldPos = new THREE.Vector3();
+            personA.headParts.getWorldPosition(headWorldPos);
+            
+            const eyeOffset = new THREE.Vector3(0, 0.05, 0.12).applyQuaternion(personA.headParts.getWorldQuaternion(new THREE.Quaternion()));
+            const eyePos = headWorldPos.clone().add(eyeOffset);
+            camera.position.copy(eyePos);
+            
+            const targetPos = new THREE.Vector3();
+            personB.headParts.getWorldPosition(targetPos);
+            
+            const dummyCam = camera.clone();
+            dummyCam.position.copy(eyePos);
+            const isStraightView = document.getElementById('side-straight')?.checked;
+            if (isStraightView) {
+                dummyCam.up.copy(new THREE.Vector3(0, 1, 0).applyQuaternion(personA.headParts.getWorldQuaternion(new THREE.Quaternion())));
+            }
+            dummyCam.lookAt(targetPos);
+            
+            camera.quaternion.copy(dummyCam.quaternion);
+            if (isStraightView) {
+                camera.rotateY(rotation.y);
+                camera.rotateX(rotation.x);
+            } else {
+                const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+                euler.x += rotation.x;
+                euler.y += rotation.y;
+                euler.z = 0; 
+                camera.quaternion.setFromEuler(euler);
+            }
+        } else {
+            const headWorldPos = new THREE.Vector3();
+            personB.headParts.getWorldPosition(headWorldPos);
+            
+            const eyeOffset = new THREE.Vector3(0, 0.05, 0.12).applyQuaternion(personB.headParts.getWorldQuaternion(new THREE.Quaternion()));
+            const eyePos = headWorldPos.clone().add(eyeOffset);
+            camera.position.copy(eyePos);
+            
+            const targetPos = new THREE.Vector3();
+            personA.headParts.getWorldPosition(targetPos);
+            
+            const dummyCam = camera.clone();
+            dummyCam.position.copy(eyePos);
+            dummyCam.lookAt(targetPos);
+            
+            camera.quaternion.copy(dummyCam.quaternion);
+            const euler = new THREE.Euler().setFromQuaternion(camera.quaternion, 'YXZ');
+            euler.x += rotation.x;
+            euler.y += rotation.y;
+            euler.z = 0; 
+            camera.quaternion.setFromEuler(euler);
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    function setupControls() {
+        const c = document.getElementById('canvas-container');
+        let initialPinchDist = null;
+
+        const move = (dx, dy) => {
+            rotation.y -= dx * 0.005; rotation.x -= dy * 0.005;
+            rotation.x = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, rotation.x));
+        };
+        c.addEventListener('mousedown', () => isDragging = true);
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousemove', e => { if(isDragging) move(e.movementX, e.movementY); });
+        
+        c.addEventListener('wheel', e => {
+            if (currentView === '3rd') {
+                camDist += e.deltaY * 0.002;
+                camDist = Math.max(0.5, Math.min(10, camDist));
+            }
+        }, { passive: true });
+
+        c.addEventListener('touchstart', e => { 
+            isDragging = true; 
+            if (e.touches.length === 1) {
+                previousTouch = e.touches[0]; 
+                initialPinchDist = null;
+            } else if (e.touches.length === 2) {
+                initialPinchDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        }, { passive: false });
+        window.addEventListener('touchend', () => {
+            isDragging = false;
+            initialPinchDist = null;
+        });
+        window.addEventListener('touchmove', e => {
+            if(!isDragging) return;
+            if (e.touches.length === 1 && previousTouch) {
+                const touch = e.touches[0]; 
+                move(touch.clientX - previousTouch.clientX, touch.clientY - previousTouch.clientY); 
+                previousTouch = touch;
+            } else if (e.touches.length === 2 && initialPinchDist !== null && currentView === '3rd') {
+                const currentDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const diff = currentDist - initialPinchDist;
+                camDist -= diff * 0.005;
+                camDist = Math.max(0.5, Math.min(10, camDist));
+                initialPinchDist = currentDist;
+            }
+        }, { passive: false });
+    }
+
+    function switchView() {
+        const order = ['3rd', 'A', 'B'];
+        currentView = order[(order.indexOf(currentView) + 1) % order.length];
+        rotation.x = 0; rotation.y = 0; 
+        if (camera) {
+            camera.fov = 50;
+            camera.updateProjectionMatrix();
+        }
+        updateScene();
+    }
+
+    function shareToX() {
+        const nA = document.getElementById('nameA')?.value || 'A';
+        const nB = document.getElementById('nameB')?.value || 'B';
+        const hA = getSafeNumber('heightA', 158.0);
+        const hB = getSafeNumber('heightB', 171.5);
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${nA}(${hA.toFixed(1)}cm)枕着${nB}(${hB.toFixed(1)}cm)的膝盖！\n#膝枕模拟器`)}&url=${encodeURIComponent(window.location.href)}`, '_blank');
+    }
+
+    init();
+</script>
+</body>
+</html>

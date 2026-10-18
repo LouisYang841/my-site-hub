@@ -1,0 +1,1036 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🪑落座模拟器</title>
+    <style>
+        :root { --panel-width: 300px; }
+        body { margin: 0; font-family: 'Helvetica Neue', Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; background: #ffffff; overflow: hidden; }
+        /* #ui-panel の更新 */
+        #ui-panel {
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            width: var(--panel-width);
+            max-height: calc(100vh - 20px);
+            max-height: calc(100dvh - 20px); /* 可変ビューポート対応 */
+            background: rgba(255, 255, 255, 0.95); 
+            padding: 15px; 
+            padding-bottom: 40px; 
+            border-radius: 15px; 
+            z-index: 100; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch; 
+            touch-action: pan-y; 
+            border: 1px solid rgba(255,255,255,0.3); 
+            backdrop-filter: blur(10px); 
+            -webkit-backdrop-filter: blur(10px);
+            box-sizing: border-box;
+            transition: all 0.2s ease-out;
+        }
+        #canvas-container { width: 100vw; height: 100vh; cursor: move; touch-action: none; }
+
+        @media screen and (max-width: 480px) { 
+            :root { --panel-width: calc(100vw - 20px); }
+            #ui-panel { left: 10px; right: 10px; }
+        }
+        
+        @media screen and (orientation: landscape) and (max-height: 500px) {
+            :root { --panel-width: 260px; }
+            #ui-panel { top: 5px; left: 5px; padding: 10px; max-height: calc(100vh - 10px); }
+            .app-title { font-size: 1.1rem; }
+            .input-group { padding: 8px; margin-bottom: 5px; }
+        }
+
+        /* ヘッダーをパネル上部に固定（スクロールしても上に張り付く） */
+        .panel-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            cursor: pointer; 
+            user-select: none; 
+            gap: 10px; 
+            position: sticky; /* パネル内スクロール時も上に固定 */
+            top: -15px;       /* padding 分を相殺 */
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 0;
+            margin: -15px -15px 10px -15px;
+            padding-left: 15px;
+            padding-right: 15px;
+            z-index: 10;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        #toggle-text { 
+            font-size: 12px; 
+            font-weight: bold; 
+            color: #666; 
+            background: #eee; 
+            padding: 4px 10px; 
+            border-radius: 10px; 
+            white-space: nowrap; /* テキストの意図しない改行を防止 */
+        }
+        .collapsed #ui-content { display: none; }
+
+        .app-title { 
+            font-size: 1.2rem; 
+            margin: 0; 
+            color: #333; 
+            font-weight: bold; 
+            white-space: nowrap; /* タイトルの改行を防止 */
+        }
+        .app-description { font-size: 11px; color: #777; margin-top: 8px; margin-bottom: 5px; line-height: 1.5; text-align: center; }
+        
+        .input-group { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; margin-bottom: 10px; }
+        .group-mode { background: #f5f5f5; border: 1px solid #e0e0e0; }
+        .group-a { background: #fff5f0; border: 1px solid #ffe0d0; }
+        .group-b { background: #f0f7ff; border: 1px solid #d0e7ff; }
+        .group-layout { background: #f9f9f9; border: 1px solid #eee; }
+        .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+        .section-header strong { font-size: 15px; color: #444; }
+        .input-row { display: flex; gap: 8px; align-items: flex-end; width: 100%; }
+        .input-item { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .hint { font-size: 10px; color: #999; margin-bottom: 2px; font-weight: bold; }
+        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; background: white; color: #333; width: 100%; box-sizing: border-box; }
+        
+        .anim-controls { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+        .btn-anim { flex: calc(50% - 4px); min-width: 70px; padding: 10px 5px; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 12px; font-weight: bold; text-align: center; box-sizing: border-box; }
+        .btn-anim.active { background: #333; color: #fff; border-color: #333; }
+
+        .checkbox-container { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #444; cursor: pointer; user-select: none; margin-top: 4px; }
+        .checkbox-container input { width: auto; cursor: pointer; }
+
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] { -moz-appearance: textfield; }
+
+        .color-picker { width: 100%; height: 38px; border: 2px solid #999; border-radius: 4px; cursor: pointer; padding: 0; background: none; appearance: none; -webkit-appearance: none; }
+        
+        .switch-btn { width: 100%; padding: 12px; background: #333; color: white; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; -webkit-tap-highlight-color: transparent; margin-bottom: 10px; }
+        .switch-btn:active { background: #000; transform: scale(0.98); }
+        .swap-btn { margin-bottom: 5px; }
+
+        .share-btn { 
+            width: 100%; padding: 12px; background: #000; color: white; border: none; border-radius: 10px; 
+            font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; 
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            text-decoration: none; margin-top: 10px;
+        }
+        .share-btn:active { transform: scale(0.98); opacity: 0.8; }
+
+        .other-tools-link { margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 10px; text-align: center; }
+        .other-tools-link a { text-decoration: none; color: #333; font-size: 12px; font-weight: bold; border: 2px solid #333; padding: 8px 15px; border-radius: 30px; display: inline-block; transition: 0.3s; margin: 4px; }
+        .other-tools-link a:hover { background: #333; color: #fff; }
+
+        .usage-notes { font-size: 10px; color: #999; margin-top: 12px; line-height: 1.5; text-align: center; }
+
+        .info-box { background: #ffffff; padding: 15px; border-radius: 12px; margin-top: 12px; border: 1px solid #eee; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
+        .info-row { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; }
+        .info-row:not(:last-child) { border-bottom: 1px dashed #eee; margin-bottom: 4px; }
+        .info-label { color: #555; font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 4px; }
+        .info-value { font-weight: 800; font-size: 18px; color: #2c3e50; font-variant-numeric: tabular-nums; }
+        .unit { font-size: 11px; margin-left: 3px; color: #7f8c8d; font-weight: normal; }
+        
+        #view-label { 
+            position: absolute; 
+            bottom: 20px; 
+            right: 15px; 
+            background: rgba(0,0,0,0.7); 
+            color: white; 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            z-index: 90; 
+            pointer-events: none; 
+        }
+        .crosshair { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; border: 2px solid rgba(0,0,0,0.15); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+
+        .piano-music-control { display: none; margin-top: 8px; margin-bottom: 4px; }
+        .btn-music { 
+            width: 100%; padding: 12px; border-radius: 25px; border: none; 
+            background: #ffad60; color: white; font-weight: bold; font-size: 14px; 
+            cursor: pointer; display: flex; align-items: center; justify-content: center; 
+            gap: 8px; box-sizing: border-box; transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(255, 173, 96, 0.3); -webkit-tap-highlight-color: transparent; 
+        }
+        .btn-music:active { transform: scale(0.98); }
+        .btn-music.playing { 
+            background: #e74c3c; 
+            box-shadow: 0 4px 12px rgba(231, 76, 60, 0.4); 
+        }
+
+        /* 折りたたんだ（閉じた）時の専用スタイル */
+        #ui-panel.collapsed {
+            max-height: none !important;
+            padding: 10px 15px !important;
+            overflow: hidden !important;
+            width: auto;
+            max-width: calc(100vw - 20px);
+        }
+
+        @media screen and (max-width: 480px) { 
+            /* スマホ表示で閉じた場合、右端の固定を解除してタイトルサイズへ収める */
+            #ui-panel.collapsed { right: auto; }
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-panel">
+    <div class="panel-header" onclick="togglePanel()">
+        <h1 class="app-title">🪑落座模拟器</h1>
+        <span id="toggle-text">关闭</span>
+    </div>
+
+    <div id="ui-content">
+        <p class="app-description">模拟坐椅子时的体格差。</p>
+
+        <div class="input-group group-a">
+            <div class="section-header"><strong>A</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameA" placeholder="名字A" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.6;"><span class="hint">性别</span><select id="genderA" onchange="updateScene()"><option value="male">男</option><option value="female" selected>女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightA" value="158.0" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.35;"><span class="hint">色</span><input type="color" id="colorA" class="color-picker" value="#ffcc99" oninput="updateScene()"></div>
+            </div>
+        </div>
+
+        <div class="input-group group-b" id="panel-group-b">
+            <div class="section-header"><strong>B</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameB" placeholder="名字B" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.6;"><span class="hint">性别</span><select id="genderB" onchange="updateScene()"><option value="male" selected>男</option><option value="female">女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightB" value="171.5" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.35;"><span class="hint">色</span><input type="color" id="colorB" class="color-picker" value="#ffad60" oninput="updateScene()"></div>
+            </div>
+        </div>
+
+        <div class="input-group group-layout">
+            <div class="section-header"><strong>摆放设置</strong></div>
+            <div class="anim-controls">
+                <button class="btn-anim active" id="btn-counter" onclick="setMode('counter')">吧台</button>
+                <button class="btn-anim" id="btn-bench" onclick="setMode('bench')">长椅</button>
+                <button class="btn-anim" id="btn-faceToFace" onclick="setMode('faceToFace')">面对面</button>
+                <button class="btn-anim" id="btn-piano" onclick="setMode('piano')">钢琴四手联弹</button>
+                <button class="btn-anim" id="btn-schoolSide" onclick="setMode('schoolSide')">教室（横排）</button>
+                <button class="btn-anim" id="btn-schoolRow" onclick="setMode('schoolRow')">教室（竖排）</button>
+            </div>
+            <select id="sittingMode" style="display:none;" onchange="updateScene()">
+                <option value="counter" selected>吧台座</option>
+                <option value="bench">长椅座</option>
+                <option value="faceToFace">对面座</option>
+                <option value="piano">钢琴四手联弹</option>
+                <option value="schoolSide">教室（横排）</option>
+                <option value="schoolRow">教室（竖排）</option>
+            </select>
+
+            <div id="distance-container" class="input-item">
+                <span class="hint">两人距离（间隔）<span id="distance-val"></span></span>
+                <input type="range" id="sittingDistance" min="0.3" max="1.5" step="0.01" value="0.75" oninput="updateScene()">
+            </div>
+
+            <div id="music-container" class="piano-music-control">
+                <button id="btn-play-music" class="btn-music" onclick="togglePianoMusic()">🎵 播放《欢乐颂》（贝多芬）</button>
+            </div>
+
+            <label class="checkbox-container" id="table-checkbox-container">
+                <input type="checkbox" id="showTable" checked onchange="updateScene()">
+                显示桌子
+            </label>
+        </div>
+
+        <div style="padding: 0 5px;">
+            <button class="switch-btn swap-btn" id="btn-swap" onclick="swapAB()">⇄ 交换A与B</button>
+            <button class="switch-btn" onclick="switchView()">🔄 切换视角</button>
+        </div>
+        
+        <div id="info-container">
+            <div class="info-box" id="info"></div>
+            <button class="share-btn" onclick="shareToX()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg> 分享结果
+            </button>
+            <div class="other-tools-link">
+                <p style="font-size: 10px; color: #888; margin-bottom: 8px;">也来看看这些❣🤩</p>
+                <a href="../">体格差模拟器一览</a>
+            </div>
+            <div class="usage-notes">
+                截图投稿、加工、描图等请随意享用。<br>
+                ※请勿用于营利或商业用途。
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="view-label"></div>
+<div class="crosshair" id="crosshair" style="display:none;"></div>
+<div id="canvas-container"></div>
+
+<script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
+
+    let scene, camera, renderer, clock;
+    let personA, personB, furnitureGroup, stageGroup;
+    let currentView = '3rd';
+    let rotation = { x: 0, y: 0 }, camDist = 2.5, isDragging = false, previousTouch = null;
+
+    const CHAIR_HEIGHT = 0.42; 
+    const TABLE_HEIGHT = 0.72;
+    const PIANO_HEIGHT = 0.73;
+
+    let audioCtx = null;
+    let isPlayingMusic = false;
+    let musicSequenceTimeout = null;
+    let particles = [];
+    let noteTextures = [];
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+        camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1000);
+        camera.rotation.order = 'YXZ';
+        
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 2.5));
+        scene.add(new THREE.GridHelper(200, 400, 0xeeeeee, 0xf5f5f5));
+
+        stageGroup = new THREE.Group();
+        scene.add(stageGroup);
+
+        furnitureGroup = new THREE.Group();
+        stageGroup.add(furnitureGroup);
+
+        clock = new THREE.Clock();
+        setupControls();
+        initNoteTextures();
+
+        window.addEventListener('resize', onWindowResize);
+        
+        window.updateScene = updateScene;
+        window.setMode = setMode;
+        window.switchView = switchView;
+        window.swapAB = swapAB;
+        window.shareToX = shareToX;
+        window.togglePianoMusic = togglePianoMusic;
+        window.togglePanel = () => {
+            const panel = document.getElementById('ui-panel');
+            const text = document.getElementById('toggle-text');
+            panel.classList.toggle('collapsed');
+            text.innerText = panel.classList.contains('collapsed') ? '打开' : '关闭';
+        };
+
+        // 入力フォームからフォーカスが外れた際に、パネルのスクロール位置を上部へリセットする
+        document.querySelectorAll('#ui-panel input, #ui-panel select').forEach(element => {
+            element.addEventListener('blur', () => {
+                const panel = document.getElementById('ui-panel');
+                if (panel) {
+                    panel.scrollTop = 0;
+                }
+                // iOS Safari等の画面全体のズレ防止策
+                window.scrollTo(0, 0);
+            });
+        });
+
+        updateScene();
+        animate();
+    }
+
+    function initNoteTextures() {
+        const notes = ['🎶', '🎵', '♩', '♪'];
+        notes.forEach(note => {
+            const canvas = document.createElement('canvas');
+            canvas.width = 64;
+            canvas.height = 64;
+            const ctx = canvas.getContext('2d');
+            ctx.font = '48px sans-serif';
+            ctx.fillStyle = '#ff9f43';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(note, 32, 32);
+            noteTextures.push(new THREE.CanvasTexture(canvas));
+        });
+    }
+
+    function spawnNoteParticle() {
+        if (noteTextures.length === 0) return;
+        const texture = noteTextures[Math.floor(Math.random() * noteTextures.length)];
+        const material = new THREE.SpriteMaterial({ map: texture, transparent: true, opacity: 0.9 });
+        const sprite = new THREE.Sprite(material);
+        
+        sprite.position.set(
+            (Math.random() - 0.5) * 1.2,
+            PIANO_HEIGHT + 0.1,
+            -0.1 + (Math.random() - 0.5) * 0.4
+        );
+        sprite.scale.set(0.15, 0.15, 1);
+        
+        stageGroup.add(sprite);
+        
+        particles.push({
+            sprite: sprite,
+            vx: (Math.random() - 0.5) * 0.01,
+            vy: 0.015 + Math.random() * 0.015,
+            vz: (Math.random() - 0.5) * 0.01,
+            life: 1.0,
+            decay: 0.008 + Math.random() * 0.008
+        });
+    }
+
+    const ODE_TO_JOY = [
+        { note: "E4", chords: ["C3", "G3", "C4"], dur: 1 }, 
+        { note: "E4", chords: [], dur: 1 }, 
+        { note: "F4", chords: ["G3", "B3", "D4"], dur: 1 }, 
+        { note: "G4", chords: [], dur: 1 },
+        { note: "G4", chords: ["G3", "B3", "D4"], dur: 1 }, 
+        { note: "F4", chords: [], dur: 1 }, 
+        { note: "E4", chords: ["C3", "G3", "C4"], dur: 1 }, 
+        { note: "D4", chords: [], dur: 1 },
+        { note: "C4", chords: ["C3", "G3", "C4"], dur: 1 }, 
+        { note: "C4", chords: [], dur: 1 }, 
+        { note: "D4", chords: ["G3", "B3", "D4"], dur: 1 }, 
+        { note: "E4", chords: [], dur: 1 },
+        { note: "E4", chords: ["C3", "G3", "C4"], dur: 1.5 }, 
+        { note: "D4", chords: [], dur: 0.5 }, 
+        { note: "D4", chords: ["G3", "B3", "D4"], dur: 2 },
+        
+        { note: "E4", chords: ["C3", "G3", "C4"], dur: 1 }, 
+        { note: "E4", chords: [], dur: 1 }, 
+        { note: "F4", chords: ["G3", "B3", "D4"], dur: 1 }, 
+        { note: "G4", chords: [], dur: 1 },
+        { note: "G4", chords: ["G3", "B3", "D4"], dur: 1 }, 
+        { note: "F4", chords: [], dur: 1 }, 
+        { note: "E4", chords: ["C3", "G3", "C4"], dur: 1 }, 
+        { note: "D4", chords: [], dur: 1 },
+        { note: "C4", chords: ["C3", "G3", "C4"], dur: 1 }, 
+        { note: "C4", chords: [], dur: 1 }, 
+        { note: "D4", chords: ["G3", "B3", "D4"], dur: 1 }, 
+        { note: "E4", chords: [], dur: 1 },
+        { note: "D4", chords: ["G3", "B3", "D4"], dur: 1.5 }, 
+        { note: "C4", chords: [], dur: 0.5 }, 
+        { note: "C4", chords: ["C3", "G3", "C4"], dur: 2 }
+    ];
+
+    const FREQ = { 
+        "C3": 130.81, "G3": 196.00, "B3": 246.94,
+        "C4": 261.63, "D4": 293.66, "E4": 329.63, "F4": 349.23, "G4": 392.00 
+    };
+
+    function playNote(freq, duration, volume = 0.2) {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gainNode = audioCtx.createGain();
+        
+        osc.type = 'triangle';
+        osc.frequency.value = freq;
+        
+        gainNode.gain.setValueAtTime(volume, audioCtx.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration - 0.05);
+        
+        osc.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration - 0.02);
+    }
+
+    function startMusicSequence(index = 0) {
+        if (!isPlayingMusic) return;
+        
+        if (index >= ODE_TO_JOY.length) {
+            index = 0; 
+        }
+        
+        const current = ODE_TO_JOY[index];
+        const tempo = 400; 
+        const durationSec = (current.dur * tempo) / 1000;
+        
+        if (FREQ[current.note]) {
+            playNote(FREQ[current.note], durationSec, 0.2);
+        }
+
+        if (current.chords && current.chords.length > 0) {
+            current.chords.forEach(chordNote => {
+                if (FREQ[chordNote]) {
+                    playNote(FREQ[chordNote], durationSec, 0.08);
+                }
+            });
+        }
+        
+        if (document.getElementById('sittingMode').value === 'piano') {
+            const numParticles = current.dur > 1 ? 2 : 1;
+            for(let i = 0; i < numParticles; i++) {
+                spawnNoteParticle();
+            }
+        }
+        
+        musicSequenceTimeout = setTimeout(() => {
+            startMusicSequence(index + 1);
+        }, current.dur * tempo);
+    }
+
+    function togglePianoMusic() {
+        const btn = document.getElementById('btn-play-music');
+        if (isPlayingMusic) {
+            stopPianoMusic();
+        } else {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            isPlayingMusic = true;
+            btn.innerText = "🛑 停止播放";
+            btn.classList.add('playing');
+            startMusicSequence();
+        }
+    }
+
+    function stopPianoMusic() {
+        isPlayingMusic = false;
+        if (musicSequenceTimeout) {
+            clearTimeout(musicSequenceTimeout);
+            musicSequenceTimeout = null;
+        }
+        const btn = document.getElementById('btn-play-music');
+        if (btn) {
+            btn.innerText = "🎵 播放《欢乐颂》（贝多芬）";
+            btn.classList.remove('playing');
+        }
+    }
+
+    function setMode(mode) {
+        document.getElementById('sittingMode').value = mode;
+        document.querySelectorAll('.btn-anim').forEach(b => b.classList.remove('active'));
+        document.getElementById('btn-' + mode).classList.add('active');
+        
+        const distContainer = document.getElementById('distance-container');
+        const tableContainer = document.getElementById('table-checkbox-container');
+        const musicContainer = document.getElementById('music-container');
+        
+        if (mode === 'counter' || mode === 'bench' || mode === 'schoolSide' || mode === 'schoolRow' || mode === 'piano') {
+            distContainer.style.display = 'flex';
+        } else {
+            distContainer.style.display = 'none';
+        }
+
+        if (mode === 'schoolSide' || mode === 'schoolRow' || mode === 'piano') {
+            tableContainer.style.display = 'none'; 
+        } else {
+            tableContainer.style.display = 'flex';
+        }
+
+        if (mode === 'piano') {
+            musicContainer.style.display = 'block';
+        } else {
+            musicContainer.style.display = 'none';
+            stopPianoMusic(); 
+        }
+        
+        updateScene();
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function swapAB() {
+        const fields = ['name', 'gender', 'height', 'color'];
+        fields.forEach(field => {
+            const elA = document.getElementById(field + 'A');
+            const elB = document.getElementById(field + 'B');
+            const tmp = elA.value;
+            elA.value = elB.value;
+            elB.value = tmp;
+        });
+        updateScene();
+    }
+
+    function buildFurniture(mode) {
+        while(furnitureGroup.children.length > 0){
+            furnitureGroup.remove(furnitureGroup.children[0]);
+        }
+
+        const woodMat = new THREE.MeshPhongMaterial({ color: 0xddcbbb });
+        const pipeMat = new THREE.MeshPhongMaterial({ color: 0x777777 });
+        const blackPianoMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a, roughness: 0.2 });
+        const whiteKeyMat = new THREE.MeshPhongMaterial({ color: 0xffffff });
+        const blackKeyMat = new THREE.MeshPhongMaterial({ color: 0x000000 });
+        const showTable = document.getElementById('showTable').checked;
+
+        const hA = parseFloat(document.getElementById('heightA').value)||158, hB = parseFloat(document.getElementById('heightB').value)||171.5;
+        const gA = document.getElementById('genderA').value, gB = document.getElementById('genderB').value;
+        const torsoWA = (gA === 'male' ? 0.26 : 0.21) * ((hA * 0.01)/1.7);
+        const torsoWB = (gB === 'male' ? 0.26 : 0.21) * ((hB * 0.01)/1.7);
+        const bodyMinDist = (torsoWA + torsoWB) * 0.5; 
+
+        let inputDist = parseFloat(document.getElementById('sittingDistance').value) || 0.75;
+        
+        function createChair(x, z, ry, isPianoBench = false) {
+            const chair = new THREE.Group();
+            const w = isPianoBench ? 1.2 : 0.4;
+            const seat = new THREE.Mesh(new THREE.BoxGeometry(w, 0.03, 0.4), woodMat);
+            seat.position.y = CHAIR_HEIGHT;
+            chair.add(seat);
+            if (!isPianoBench) {
+                const back = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.4, 0.03), woodMat);
+                back.position.set(0, CHAIR_HEIGHT + 0.2, -0.185);
+                chair.add(back);
+            }
+            const legGeo = new THREE.CylinderGeometry(0.015, 0.015, CHAIR_HEIGHT);
+            const positions = [[-w/2 + 0.02, -0.18], [w/2 - 0.02, -0.18], [-w/2 + 0.02, 0.18], [w/2 - 0.02, 0.18]];
+            positions.forEach(p => {
+                const leg = new THREE.Mesh(legGeo, pipeMat);
+                leg.position.set(p[0], CHAIR_HEIGHT / 2, p[1]);
+                chair.add(leg);
+            });
+            chair.position.set(x, 0, z);
+            chair.rotation.y = ry;
+            furnitureGroup.add(chair);
+        }
+
+        function createSchoolDesk(x, z) {
+            const desk = new THREE.Group();
+            const topBoard = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.03, 0.4), woodMat);
+            topBoard.position.y = TABLE_HEIGHT;
+            desk.add(topBoard);
+            const legGeo = new THREE.BoxGeometry(0.03, TABLE_HEIGHT, 0.03);
+            [[-0.27, -0.17], [0.27, -0.17], [-0.27, 0.17], [0.27, 0.17]].forEach(p => {
+                const leg = new THREE.Mesh(legGeo, pipeMat);
+                leg.position.set(p[0], TABLE_HEIGHT / 2, p[1]);
+                desk.add(leg);
+            });
+            desk.position.set(x, 0, z);
+            furnitureGroup.add(desk);
+        }
+
+        if (mode === 'counter') {
+            if (showTable) {
+                const tableWidth = 2.0; 
+                const table = new THREE.Group();
+                const topBoard = new THREE.Mesh(new THREE.BoxGeometry(tableWidth, 0.04, 0.5), woodMat);
+                topBoard.position.y = TABLE_HEIGHT;
+                table.add(topBoard);
+                const legGeo = new THREE.BoxGeometry(0.04, TABLE_HEIGHT, 0.4);
+                const legL = new THREE.Mesh(legGeo, pipeMat); legL.position.set(-tableWidth/2 + 0.05, TABLE_HEIGHT/2, 0); table.add(legL);
+                const legR = new THREE.Mesh(legGeo, pipeMat); legR.position.set(tableWidth/2 - 0.05, TABLE_HEIGHT/2, 0); table.add(legR);
+                table.position.set(0, 0, 0.35);
+                furnitureGroup.add(table);
+            }
+
+            const safeCounterDist = Math.max(inputDist, 0.4, bodyMinDist);
+            createChair(-safeCounterDist / 2, 0, 0);
+            createChair(safeCounterDist / 2, 0, 0);
+
+        } else if (mode === 'bench') {
+            const benchWidth = 2.0; 
+            const bench = new THREE.Group();
+            const seat = new THREE.Mesh(new THREE.BoxGeometry(benchWidth, 0.03, 0.4), woodMat);
+            seat.position.y = CHAIR_HEIGHT;
+            bench.add(seat);
+            const legGeo = new THREE.CylinderGeometry(0.02, 0.02, CHAIR_HEIGHT);
+            [[-benchWidth/2 + 0.05, -0.15], [benchWidth/2 - 0.05, -0.15], [-benchWidth/2 + 0.05, 0.15], [benchWidth/2 - 0.05, 0.15]].forEach(p => {
+                const leg = new THREE.Mesh(legGeo, pipeMat);
+                leg.position.set(p[0], CHAIR_HEIGHT / 2, p[1]);
+                bench.add(leg);
+            });
+            bench.position.set(0, 0, 0);
+            furnitureGroup.add(bench);
+
+            if (showTable) {
+                const tableWidth = 2.0; 
+                const table = new THREE.Group();
+                const topBoard = new THREE.Mesh(new THREE.BoxGeometry(tableWidth, 0.04, 0.5), woodMat);
+                topBoard.position.y = TABLE_HEIGHT;
+                table.add(topBoard);
+                const tableLegGeo = new THREE.BoxGeometry(0.04, TABLE_HEIGHT, 0.4);
+                const legL = new THREE.Mesh(tableLegGeo, pipeMat); legL.position.set(-tableWidth/2 + 0.05, TABLE_HEIGHT/2, 0); table.add(legL);
+                const legR = new THREE.Mesh(tableLegGeo, pipeMat); legR.position.set(tableWidth/2 - 0.05, TABLE_HEIGHT/2, 0); table.add(legR);
+                table.position.set(0, 0, 0.35);
+                furnitureGroup.add(table);
+            }
+
+        } else if (mode === 'faceToFace') {
+            if (showTable) {
+                const table = new THREE.Group();
+                const topBoard = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.04, 0.8), woodMat);
+                topBoard.position.y = TABLE_HEIGHT;
+                table.add(topBoard);
+                const legGeo = new THREE.CylinderGeometry(0.03, 0.03, TABLE_HEIGHT);
+                [[-0.4, -0.35], [0.4, -0.35], [-0.4, 0.35], [0.4, 0.35]].forEach(p => {
+                    const leg = new THREE.Mesh(legGeo, pipeMat);
+                    leg.position.set(p[0], TABLE_HEIGHT/2, p[1]);
+                    table.add(leg);
+                });
+                table.position.set(0, 0, 0);
+                furnitureGroup.add(table);
+            }
+
+            createChair(0, -0.55, 0);
+            createChair(0, 0.55, Math.PI);
+
+        } else if (mode === 'schoolSide') {
+            const minSafeDist = Math.max(bodyMinDist, 0.6);
+            const safeDist = Math.max(inputDist, minSafeDist);
+            
+            createChair(-safeDist / 2, 0, 0);
+            createChair(safeDist / 2, 0, 0);
+            createSchoolDesk(-safeDist / 2, 0.35);
+            createSchoolDesk(safeDist / 2, 0.35);
+
+        } else if (mode === 'schoolRow') {
+            const safeDist = Math.max(inputDist, 0.75);
+            
+            createChair(0, -safeDist / 2, 0);      
+            createSchoolDesk(0, -safeDist / 2 + 0.35);
+            createChair(0, safeDist / 2, 0);       
+            createSchoolDesk(0, safeDist / 2 + 0.35);
+        } else if (mode === 'piano') {
+            const piano = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.6, 0.5), blackPianoMat);
+            body.position.set(0, PIANO_HEIGHT + 0.1, 0.4);
+            piano.add(body);
+            const sideL = new THREE.Mesh(new THREE.BoxGeometry(0.05, PIANO_HEIGHT + 0.4, 0.65), blackPianoMat);
+            sideL.position.set(-0.825, (PIANO_HEIGHT + 0.4)/2, 0.325);
+            piano.add(sideL);
+            const sideR = new THREE.Mesh(new THREE.BoxGeometry(0.05, PIANO_HEIGHT + 0.4, 0.65), blackPianoMat);
+            sideR.position.set(0.825, (PIANO_HEIGHT + 0.4)/2, 0.325);
+            piano.add(sideR);
+            const whiteKeys = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.02, 0.15), whiteKeyMat);
+            whiteKeys.position.set(0, PIANO_HEIGHT, 0.075);
+            piano.add(whiteKeys);
+            
+            let keyIdx = 0;
+            for (let i = -75; i <= 75; i += 3) {
+                const patternIdx = keyIdx % 7;
+                if (patternIdx !== 2 && patternIdx !== 6) { 
+                    const blackKey = new THREE.Mesh(new THREE.BoxGeometry(0.015, 0.025, 0.1), blackKeyMat);
+                    blackKey.position.set(i * 0.01, PIANO_HEIGHT + 0.015, 0.1);
+                    piano.add(blackKey);
+                }
+                keyIdx++;
+            }
+            piano.position.z += 0.2;
+            furnitureGroup.add(piano);
+            createChair(0, -0.3, 0, true);
+        }
+    }
+
+    function createMannequin(color, heightCm, gender, name, role) {
+        const group = new THREE.Group();
+        const h = heightCm * 0.01;
+        const bodyMat = new THREE.MeshPhongMaterial({ color: color, transparent: true, opacity: 0.85 });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+
+        const headH = h * 0.13, neckH = h * 0.05, torsoH = h * 0.37, legH = h * 0.45;
+        const torsoW = (gender === 'male' ? 0.26 : 0.21) * (h/1.7);
+        const torsoDepth = torsoW * 0.5;
+
+        const bodyGroup = new THREE.Group();
+        bodyGroup.position.y = CHAIR_HEIGHT;
+        
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoW, torsoH, torsoDepth), bodyMat);
+        torso.position.y = torsoH * 0.5;
+        bodyGroup.add(torso);
+
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(headH*0.3, headH*0.3, neckH, 16), bodyMat);
+        neck.position.y = torsoH + (neckH * 0.5);
+        bodyGroup.add(neck);
+
+        const localEyeY = torsoH + neckH + (headH * 0.3);
+        const headBox = new THREE.Group();
+        headBox.position.y = localEyeY;
+        const head = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.8, 16, 16), bodyMat);
+        head.position.y = (headH * 0.5) - (headH * 0.3);
+        headBox.add(head);
+        [-1, 1].forEach(side => {
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.12, 12, 12), eyeMat);
+            eye.position.set(side * (headH * 0.28), (headH * 0.5) - (headH * 0.3), (headH * 0.7));
+            headBox.add(eye);
+        });
+        bodyGroup.add(headBox);
+        group.headParts = headBox;
+
+        group.arms = [];
+        [-1, 1].forEach(side => {
+            const anchor = new THREE.Group();
+            anchor.position.set(side * (torsoW * 0.6), torsoH - (torsoW * 0.15), 0);
+            const armLen = h * 0.38;
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.3, armLen, torsoW*0.3), bodyMat);
+            mesh.position.y = -armLen * 0.5;
+            anchor.add(mesh);
+            bodyGroup.add(anchor);
+            group.arms.push(anchor);
+            anchor.rotation.set(0, 0, 0); 
+        });
+
+        const thighLen = legH * 0.5;
+        [-1, 1].forEach(side => {
+            const thigh = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.4, torsoW*0.4, thighLen), bodyMat);
+            thigh.position.set(side * (torsoW * 0.25), torsoW * 0.2, thighLen * 0.5);
+            bodyGroup.add(thigh);
+            const shin = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.4, CHAIR_HEIGHT, torsoW*0.4), bodyMat);
+            shin.position.set(side * (torsoW * 0.25), -CHAIR_HEIGHT * 0.5 + (torsoW * 0.2), thighLen);
+            bodyGroup.add(shin);
+        });
+
+        group.add(bodyGroup);
+
+        const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128;
+        const ctx = canvas.getContext('2d'); ctx.font = "bold 45px sans-serif"; ctx.fillStyle = "#333"; ctx.textAlign = "center";
+        const displayName = name || (role === 'B' ? 'B' : 'A');
+        ctx.fillText(`${displayName} (${heightCm.toFixed(1)}cm)`, 256, 64);
+        const spriteMaterial = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(1.5, 0.38, 1); 
+        sprite.position.y = CHAIR_HEIGHT + localEyeY + headH + 0.3; 
+        group.add(sprite);
+        group.nameTag = sprite;
+
+        group.userData = { height: h, eyeY: CHAIR_HEIGHT + localEyeY, role: role, torsoW: torsoW };
+        return group;
+    }
+
+    function updateScene() {
+        const mode = document.getElementById('sittingMode').value;
+        const hA = parseFloat(document.getElementById('heightA').value)||158, hB = parseFloat(document.getElementById('heightB').value)||171.5;
+        let dist = parseFloat(document.getElementById('sittingDistance').value) || 0.75;
+
+        if(personA) stageGroup.remove(personA);
+        if(personB) stageGroup.remove(personB);
+        
+        buildFurniture(mode);
+
+        personA = createMannequin(document.getElementById('colorA').value, hA, document.getElementById('genderA').value, document.getElementById('nameA').value, 'A');
+        personB = createMannequin(document.getElementById('colorB').value, hB, document.getElementById('genderB').value, document.getElementById('nameB').value, 'B');
+        
+        personA.headParts.rotation.set(0, 0, 0);
+        personB.headParts.rotation.set(0, 0, 0);
+
+        let displayDist = dist;
+        if (mode === 'counter' || mode === 'bench' || mode === 'schoolSide' || mode === 'piano') {
+            const bodyMinDist = (personA.userData.torsoW + personB.userData.torsoW) * 0.5;
+            let minSafeDist = bodyMinDist;
+            if (mode === 'counter') minSafeDist = Math.max(bodyMinDist, 0.4);
+            if (mode === 'schoolSide') minSafeDist = Math.max(bodyMinDist, 0.6);
+            if (mode === 'piano') minSafeDist = Math.max(bodyMinDist, 0.35);
+            
+            let safeDist = Math.max(dist, minSafeDist);
+            
+            if (mode === 'piano') {
+                const maxSafeDist = 1.2 - (personA.userData.torsoW + personB.userData.torsoW) * 0.5;
+                if (safeDist > maxSafeDist) {
+                    safeDist = Math.max(minSafeDist, maxSafeDist);
+                }
+            }
+            
+            displayDist = safeDist;
+
+            if (mode === 'piano') {
+                personA.position.set(-safeDist / 2, 0, -0.3);
+                personA.rotation.set(0, 0, 0);
+                personB.position.set(safeDist / 2, 0, -0.3);
+                personB.rotation.set(0, 0, 0);
+                
+                personA.headParts.rotation.x = 0.35;
+                personB.headParts.rotation.x = 0.35;
+
+                const armLenA = hA * 0.01 * 0.38;
+                const shoulderYA = CHAIR_HEIGHT + (hA * 0.01 * 0.37) - ((personA.userData.torsoW) * 0.15);
+                const diffYA = shoulderYA - PIANO_HEIGHT;
+                const angleA = -Math.acos(Math.max(-1, Math.min(1, diffYA / armLenA)));
+                personA.arms.forEach(arm => arm.rotation.set(isNaN(angleA) ? -Math.PI / 3.0 : angleA, 0, 0));
+
+                const armLenB = hB * 0.01 * 0.38;
+                const shoulderYB = CHAIR_HEIGHT + (hB * 0.01 * 0.37) - ((personB.userData.torsoW) * 0.15);
+                const diffYB = shoulderYB - PIANO_HEIGHT;
+                const angleB = -Math.acos(Math.max(-1, Math.min(1, diffYB / armLenB)));
+                personB.arms.forEach(arm => arm.rotation.set(isNaN(angleB) ? -Math.PI / 3.0 : angleB, 0, 0));
+                
+            } else {
+                personA.position.set(-safeDist / 2, 0, 0);
+                personA.rotation.set(0, 0, 0);
+                personB.position.set(safeDist / 2, 0, 0);
+                personB.rotation.set(0, 0, 0);
+            }
+        } else if (mode === 'faceToFace') {
+            personA.position.set(0, 0, -0.55);
+            personA.rotation.set(0, 0, 0);
+            personB.position.set(0, 0, 0.55);
+            personB.rotation.set(0, Math.PI, 0);
+            displayDist = 1.1;
+        } else if (mode === 'schoolRow') {
+            const safeDist = Math.max(dist, 0.75);
+            displayDist = safeDist;
+            personA.position.set(0, 0, -safeDist / 2); 
+            personA.rotation.set(0, 0, 0);
+            personB.position.set(0, 0, safeDist / 2);  
+            personB.rotation.set(0, 0, 0);
+        }
+        stageGroup.add(personA);
+        stageGroup.add(personB);
+
+        let shortestDist = displayDist;
+        const widthHalfA = personA.userData.torsoW * 0.5;
+        const widthHalfB = personB.userData.torsoW * 0.5;
+        if (mode === 'counter' || mode === 'bench' || mode === 'schoolSide' || mode === 'piano') {
+            shortestDist = displayDist - (widthHalfA + widthHalfB);
+        } else if (mode === 'faceToFace' || mode === 'schoolRow') {
+            shortestDist = displayDist - (widthHalfA * 0.5 + widthHalfB * 0.5);
+        }
+        shortestDist = Math.max(0, shortestDist);
+
+        document.getElementById('distance-val').innerText = ` (${Math.round(shortestDist * 100)}cm)`;
+
+        if (personA && personB) {
+            personA.headParts.visible = (currentView !== 'A');
+            personA.nameTag.visible = (currentView !== 'A');
+            personB.headParts.visible = (currentView !== 'B');
+            personB.nameTag.visible = (currentView !== 'B');
+        }
+
+        const nA = document.getElementById('nameA').value||'A', nB = document.getElementById('nameB').value||'B';
+        document.getElementById('view-label').innerText = currentView === 'A' ? nA+' 的视角' : (currentView === 'B' ? nB+' 的视角' : '第三人称视角');
+        
+        document.getElementById('info').innerHTML = `
+            <div class="info-row"><span class="info-label">📏 全身长度差</span><span class="info-value">${Math.abs(hA-hB).toFixed(1)}<span class="unit">cm</span></span></div>
+            <div class="info-row"><span class="info-label">🪑 座高(目線)差</span><span class="info-value">${(Math.abs(hA - hB) * 0.55).toFixed(1)}<span class="unit">cm</span></span></div>
+        `;
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const centerPos = new THREE.Vector3(0, CHAIR_HEIGHT + 0.4, 0);
+        
+        if (currentView === '3rd') {
+            camera.position.set(
+                centerPos.x + Math.sin(rotation.y) * camDist * Math.cos(rotation.x), 
+                centerPos.y + Math.sin(rotation.x) * camDist, 
+                centerPos.z + Math.cos(rotation.y) * camDist * Math.cos(rotation.x)
+            );
+            camera.lookAt(centerPos);
+        } else {
+            const self = (currentView === 'A' ? personA : personB);
+            
+            const eyePos = new THREE.Vector3().copy(self.position).add(new THREE.Vector3(0, self.userData.eyeY, 0));
+            camera.position.copy(eyePos);
+            
+            const baseTargetRotation = new THREE.Quaternion().setFromEuler(
+                new THREE.Euler(0, self.rotation.y + Math.PI, 0, 'YXZ')
+            );
+            
+            const operationRotation = new THREE.Quaternion().setFromEuler(
+                new THREE.Euler(rotation.x, rotation.y, 0, 'YXZ')
+            );
+            
+            camera.quaternion.copy(baseTargetRotation).multiply(operationRotation);
+        }
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.sprite.position.x += p.vx;
+            p.sprite.position.y += p.vy;
+            p.sprite.position.z += p.vz;
+            p.life -= p.decay;
+            p.sprite.material.opacity = p.life;
+            
+            if (p.life <= 0 || document.getElementById('sittingMode').value !== 'piano') {
+                stageGroup.remove(p.sprite);
+                p.sprite.material.dispose();
+                particles.splice(i, 1);
+            }
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    function setupControls() {
+        const c = document.getElementById('canvas-container');
+        let initialPinchDist = null;
+
+        const move = (dx, dy) => {
+            rotation.y -= dx * 0.005; rotation.x -= dy * 0.005;
+            rotation.x = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, rotation.x));
+        };
+        c.addEventListener('mousedown', () => isDragging = true);
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousemove', e => { if(isDragging) move(e.movementX, e.movementY); });
+        
+        c.addEventListener('wheel', e => {
+            if (currentView === '3rd') {
+                camDist += e.deltaY * 0.002;
+                camDist = Math.max(0.5, Math.min(10, camDist));
+            }
+        }, { passive: true });
+
+        c.addEventListener('touchstart', e => { 
+            isDragging = true; 
+            if (e.touches.length === 1) {
+                previousTouch = e.touches[0]; 
+                initialPinchDist = null;
+            } else if (e.touches.length === 2) {
+                initialPinchDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        }, { passive: false });
+        window.addEventListener('touchend', () => {
+            isDragging = false;
+            initialPinchDist = null;
+        });
+        window.addEventListener('touchmove', e => {
+            if(!isDragging) return;
+            if (e.touches.length === 1 && previousTouch) {
+                const touch = e.touches[0]; 
+                move(touch.clientX - previousTouch.clientX, touch.clientY - previousTouch.clientY); 
+                previousTouch = touch;
+            } else if (e.touches.length === 2 && initialPinchDist !== null && currentView === '3rd') {
+                const currentDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const diff = currentDist - initialPinchDist;
+                camDist -= diff * 0.005;
+                camDist = Math.max(0.5, Math.min(10, camDist));
+                initialPinchDist = currentDist;
+            }
+        }, { passive: false });
+    }
+
+    function switchView() {
+        const order = ['3rd', 'A', 'B'];
+        currentView = order[(order.indexOf(currentView) + 1) % order.length];
+        rotation.x = 0; rotation.y = 0; 
+        if (camera) {
+            camera.fov = 50;
+            camera.updateProjectionMatrix();
+        }
+        updateScene();
+    }
+
+    function shareToX() {
+        const nA = document.getElementById('nameA').value || 'A', nB = document.getElementById('nameB').value || 'B';
+        const hA = parseFloat(document.getElementById('heightA').value) || 158.0, hB = parseFloat(document.getElementById('heightB').value) || 171.5;
+        const modeName = {
+            'counter':'吧台座','bench':'长椅座','faceToFace':'对面座',
+            'piano':'钢琴四手联弹','schoolSide':'教室座位(横排)','schoolRow':'教室座位(竖排)'
+        }[document.getElementById('sittingMode').value];
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${nA}(${hA.toFixed(1)}cm)和${nB}(${hB.toFixed(1)}cm)的${modeName}落座体格差！\n#落座模拟器`)}&url=${encodeURIComponent(window.location.href)}`, '_blank');
+    }
+
+    init();
+</script>
+</body>
+</html>

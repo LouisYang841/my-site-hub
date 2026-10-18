@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>👔男友衬衫模拟器</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; text-align: center; background: #fdf6e3; padding: 10px; color: #333; margin: 0; }
+        .container { max-width: 500px; margin: 20px auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); }
+        h1 { font-size: 1.5rem; margin-bottom: 10px; color: #444; }
+        .description { font-size: 13px; color: #666; margin-bottom: 20px; line-height: 1.6; }
+        
+        .display-area {
+            position: relative; border: 2px solid #eee; margin: 20px 0;
+            display: flex; justify-content: center; align-items: center; overflow: hidden;
+            background: #fff; border-radius: 10px;
+            height: 400px;
+            width: 100%;
+        }
+
+        .controls { display: flex; flex-direction: column; gap: 12px; }
+        .input-group { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 8px; padding: 15px; border-radius: 12px; }
+        .group-a { background: #fff0e0; border: 1px solid #ffe0c0; }
+        .group-b { background: #e0f0ff; border: 1px solid #c0e0ff; }
+        
+        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; }
+        .num-input { width: 65px; }
+        .color-picker { 
+            width: 35px; 
+            height: 35px; 
+            border: none; 
+            background: none; 
+            cursor: pointer; 
+            padding: 0; 
+            vertical-align: middle;
+        }
+        .hint { font-size: 10px; color: #888; display: block; margin-bottom: 2px; }
+
+        .share-area { margin-top: 20px; border-top: 1px dashed #ccc; padding-top: 20px; }
+        .btn-share { background: #000; color: #fff; border: none; padding: 10px 24px; border-radius: 25px; cursor: pointer; font-weight: bold; font-size: 14px; margin-bottom: 20px; }
+        
+        .other-tools-link {
+            margin-bottom: 25px;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 10px;
+        }
+        .other-tools-link a {
+            text-decoration: none;
+            color: #333;
+            font-size: 14px;
+            font-weight: bold;
+            border: 2px solid #333;
+            padding: 10px 20px;
+            border-radius: 30px;
+            display: inline-block;
+            transition: 0.3s;
+            margin: 5px;
+        }
+        .other-tools-link a:hover {
+            background: #333;
+            color: #fff;
+        }
+
+        .license-text { font-size: 10px; color: #aaa; line-height: 1.6; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>👔男友衬衫模拟器</h1>
+    <p class="description">
+        输入性别和身高，即可看到穿上男友衬衫时的尺寸效果。<br>
+        <small>※只是大概效果，参考一下就好😘</small>
+    </p>
+
+    <div class="controls">
+        <div class="input-group group-a">
+            <strong>借出衬衫的人</strong>
+            <input type="text" id="nameA" placeholder="名字" oninput="update()" style="width:90px">
+            <select id="genderA" onchange="update()">
+                <option value="male">男</option>
+                <option value="female">女</option>
+            </select>
+            <div><span class="hint">身高(cm)</span><input type="number" id="heightA" class="num-input" value="171.5" oninput="update()"></div>
+            <div>
+                <span class="hint">衬衫颜色</span>
+                <input type="color" id="colorShirt" class="color-picker" value="#e3efff" oninput="update()">
+            </div>
+        </div>
+        <div class="input-group group-b">
+            <strong>穿衬衫的人</strong>
+            <input type="text" id="nameB" placeholder="名字" oninput="update()" style="width:90px">
+            <select id="genderB" onchange="update()">
+                <option value="male">男</option>
+                <option value="female" selected>女</option>
+            </select>
+            <div><span class="hint">身高(cm)</span><input type="number" id="heightB" class="num-input" value="158" oninput="update()"></div>
+            <div>
+                <span class="hint">肤色</span>
+                <input type="color" id="colorBody" class="color-picker" value="#ffcc99" oninput="update()">
+            </div>
+        </div>
+    </div>
+
+    <div class="display-area" id="displayArea">
+        <svg id="scene-svg" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <div class="share-area">
+        <button class="btn-share" onclick="shareOnX()">分享到 𝕏</button>
+        
+        <div class="other-tools-link">
+            <p style="font-size: 12px; color: #888; margin-bottom: 10px;">也来看看这些❣🤩</p>
+            <a href="../">体格差模拟器一览</a>
+    
+        </div>
+
+        <div class="license-text">
+            截图投稿、加工、描图等请随意享用。<br>
+            ※请勿用于营利或商业用途。
+        </div>
+    </div>
+</div>
+
+<script>
+function bodyOf(h, gender) {
+    const m = gender === 'male';
+    return {
+        h,
+        shoulderW: h * (m ? 0.125 : 0.110),
+        torsoH:    h * 0.285,
+        legLen:    h * 0.455,
+        headR:      h * 0.075,
+        shirtLen:  h * 0.410,
+        armLen:    h * 0.355, 
+    };
+}
+
+function update() {
+    const hA = parseFloat(document.getElementById('heightA').value) || 171.5;
+    const hB = parseFloat(document.getElementById('heightB').value) || 158;
+    const gA = document.getElementById('genderA').value;
+    const gB = document.getElementById('genderB').value;
+    const BODY = document.getElementById('colorBody').value;
+    const SHIRT = document.getElementById('colorShirt').value;
+
+    const pA = bodyOf(hA, gA);
+    const pB = bodyOf(hB, gB);
+    
+    const svgEl = document.getElementById('scene-svg');
+    const containerWidth = document.getElementById('displayArea').clientWidth; 
+    const canvasH = 400;
+    const S = (canvasH * 0.8) / Math.max(hA, hB); 
+
+    const headR = pB.headR * S;
+    const neckH = hB * 0.04 * S;
+    const torsoPx = pB.torsoH * S;
+    const legPx = pB.legLen * S;
+    const footH = hB * 0.025 * S;
+    
+    const oy = canvasH * 0.9; 
+
+    const ankleY = -footH;
+    const hipY = ankleY - legPx;
+    const shldrY = hipY - torsoPx;
+    const headCY = shldrY - neckH - headR;
+
+    const sw = pB.shoulderW * S;
+    const ssw = pA.shoulderW * S;
+    const myArmLen = pB.armLen * S;
+    const handR = headR * 0.55;
+
+    const baseShirtSleeveL = (pA.armLen * S) - handR;
+    const shirtH = pA.shirtLen * S;
+    const armAngle = 0.4;
+    const shirtStrokeW = ssw * 0.85;
+
+    const cx = containerWidth / 2; 
+
+    const rHandX = cx + sw + (myArmLen * Math.cos(armAngle));
+    const rHandY = oy + shldrY + (myArmLen * Math.sin(armAngle));
+    const lHandX = cx - sw - (myArmLen * Math.cos(armAngle));
+    const lHandY = oy + shldrY + (myArmLen * Math.sin(armAngle));
+
+    let html = '';
+
+    const bodyOpacity = "0.8";
+    html += `<circle cx="${cx}" cy="${oy+headCY}" r="${headR}" fill="${BODY}" opacity="${bodyOpacity}"/>`;
+    html += `<rect x="${cx - sw*0.2}" y="${oy+shldrY-neckH}" width="${sw*0.4}" height="${neckH}" fill="${BODY}" opacity="${bodyOpacity}"/>`;
+    html += `<path d="M${cx-sw} ${oy+shldrY} Q${cx-sw*0.9} ${oy+hipY} ${cx-sw*0.7} ${oy+hipY} L${cx+sw*0.7} ${oy+hipY} Q${cx+sw*0.9} ${oy+hipY} ${cx+sw} ${oy+shldrY} Z" fill="${BODY}" opacity="${bodyOpacity}"/>`;
+    html += `<line x1="${cx-sw*0.4}" y1="${oy+hipY}" x2="${cx-sw*0.35}" y2="${oy+ankleY}" stroke="${BODY}" stroke-width="${sw*0.7}" stroke-linecap="round" opacity="${bodyOpacity}"/>`;
+    html += `<line x1="${cx+sw*0.4}" y1="${oy+hipY}" x2="${cx+sw*0.35}" y2="${oy+ankleY}" stroke="${BODY}" stroke-width="${sw*0.7}" stroke-linecap="round" opacity="${bodyOpacity}"/>`;
+
+    const armCommon = `stroke="${BODY}" stroke-width="${sw*0.5}" stroke-linecap="round" opacity="${bodyOpacity}"`;
+    html += `<line x1="${cx-sw}" y1="${oy+shldrY+sw*0.1}" x2="${lHandX}" y2="${lHandY}" ${armCommon} />`;
+    html += `<line x1="${cx+sw}" y1="${oy+shldrY+sw*0.1}" x2="${rHandX}" y2="${rHandY}" ${armCommon} />`;
+    html += `<circle cx="${lHandX}" cy="${lHandY}" r="${handR}" fill="${BODY}"/>`;
+    html += `<circle cx="${rHandX}" cy="${rHandY}" r="${handR}" fill="${BODY}"/>`;
+
+    const shirtOpacity = "0.9";
+    const slvL_X = (baseShirtSleeveL * Math.cos(armAngle));
+    const slvL_Y = (baseShirtSleeveL * Math.sin(armAngle));
+    
+    html += `<rect x="${cx-ssw}" y="${oy+shldrY}" width="${ssw*2}" height="${shirtH}" rx="5" fill="${SHIRT}" opacity="${shirtOpacity}" style="filter:drop-shadow(0 3px 5px rgba(0,0,0,0.12))"/>`;
+    html += `<line x1="${cx-ssw}" y1="${oy+shldrY+ssw*0.1}" x2="${cx-ssw-slvL_X}" y2="${oy+shldrY+slvL_Y}" stroke="${SHIRT}" stroke-width="${shirtStrokeW}" stroke-linecap="butt" opacity="${shirtOpacity}" />`;
+    html += `<line x1="${cx+ssw}" y1="${oy+shldrY+ssw*0.1}" x2="${cx+ssw+slvL_X}" y2="${oy+shldrY+slvL_Y}" stroke="${SHIRT}" stroke-width="${shirtStrokeW}" stroke-linecap="butt" opacity="${shirtOpacity}" />`;
+
+    svgEl.setAttribute('width', containerWidth);
+    svgEl.setAttribute('height', canvasH);
+    svgEl.innerHTML = html;
+}
+
+function shareOnX() {
+    const text = encodeURIComponent(`${document.getElementById('nameA').value || '彼'}(${document.getElementById('heightA').value}cm)的衬衫，${document.getElementById('nameB').value || '我'}(${document.getElementById('heightB').value}cm)试穿了！\n#男友衬衫模拟器\n`);
+    const url = encodeURIComponent(window.location.href);
+    window.open(`https://twitter.com/intent/tweet?text=${text}&url=${url}`, '_blank');
+}
+
+window.onload = update;
+window.onresize = update;
+</script>
+</body>
+</html>

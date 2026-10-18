@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>📸大头贴模拟器</title>
+    <style>
+        :root { --panel-width: 300px; }
+        body { margin: 0; font-family: 'Helvetica Neue', Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; background: #ffffff; overflow: hidden; }
+        
+        /* #ui-panel の更新 */
+        #ui-panel {
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            width: var(--panel-width);
+            max-height: calc(100vh - 20px);
+            max-height: calc(100dvh - 20px); /* 可変ビューポート対応 */
+            background: rgba(255, 255, 255, 0.95); 
+            padding: 15px; 
+            padding-bottom: 40px; 
+            border-radius: 15px; 
+            z-index: 100; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch; 
+            touch-action: pan-y; 
+            border: 1px solid rgba(255,255,255,0.3); 
+            backdrop-filter: blur(10px); 
+            -webkit-backdrop-filter: blur(10px);
+            box-sizing: border-box;
+            transition: all 0.2s ease-out;
+        }
+        #canvas-container { width: 100vw; height: 100vh; cursor: move; touch-action: none; }
+
+        @media screen and (max-width: 480px) { 
+            :root { --panel-width: calc(100vw - 20px); }
+            #ui-panel { left: 10px; right: 10px; }
+        }
+        
+        @media screen and (orientation: landscape) and (max-height: 500px) {
+            :root { --panel-width: 260px; }
+            #ui-panel { top: 5px; left: 5px; padding: 10px; max-height: calc(100vh - 10px); }
+            .app-title { font-size: 1.1rem; }
+            .input-group { padding: 8px; margin-bottom: 5px; }
+        }
+
+        /* ヘッダーをパネル上部に固定（スクロールしても上に張り付く） */
+        .panel-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            cursor: pointer; 
+            user-select: none; 
+            gap: 10px; 
+            position: sticky; /* パネル内スクロール時も上に固定 */
+            top: -15px;       /* padding 分を相殺 */
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 0;
+            margin: -15px -15px 10px -15px;
+            padding-left: 15px;
+            padding-right: 15px;
+            z-index: 10;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        #toggle-text { 
+            font-size: 12px; 
+            font-weight: bold; 
+            color: #666; 
+            background: #eee; 
+            padding: 4px 10px; 
+            border-radius: 10px; 
+            white-space: nowrap; /* テキストの意図しない改行を防止 */
+        }
+        .collapsed #ui-content { display: none; }
+
+        /* 折りたたんだ（閉じた）時の専用スタイル */
+        #ui-panel.collapsed {
+            max-height: none !important;
+            padding: 10px 15px !important;
+            overflow: hidden !important;
+            width: auto;
+            max-width: calc(100vw - 20px);
+        }
+
+        @media screen and (max-width: 480px) { 
+            /* スマホ表示で閉じた場合、右端の固定を解除してタイトルサイズへ収める */
+            #ui-panel.collapsed { right: auto; }
+        }
+
+        .app-title { 
+            font-size: 1.2rem; 
+            margin: 0; 
+            color: #333; 
+            font-weight: bold; 
+            white-space: nowrap; /* タイトルの改行を防止 */
+        }
+        .app-description { font-size: 11px; color: #777; margin-top: 8px; margin-bottom: 5px; line-height: 1.5; text-align: center; }
+        
+        .input-group { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; margin-bottom: 10px; }
+        .group-a { background: #fff5f0; border: 1px solid #ffe0d0; }
+        .group-b { background: #f0f7ff; border: 1px solid #d0e7ff; }
+        .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+        .section-header strong { font-size: 15px; color: #444; }
+        .input-row { display: flex; gap: 8px; align-items: flex-end; width: 100%; }
+        .input-item { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .hint { font-size: 10px; color: #999; margin-bottom: 2px; font-weight: bold; }
+        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; background: white; color: #333; width: 100%; box-sizing: border-box; }
+        
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] { -moz-appearance: textfield; }
+
+        .color-picker { width: 100%; height: 38px; border: 2px solid #999; border-radius: 4px; cursor: pointer; padding: 0; background: none; appearance: none; -webkit-appearance: none; }
+        
+        .switch-btn { width: 100%; padding: 12px; background: #333; color: white; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; -webkit-tap-highlight-color: transparent; margin-bottom: 10px; }
+        .switch-btn:active { background: #000; transform: scale(0.98); }
+        .draw-btn { background: #d35400; }
+        .draw-btn:active { background: #a04000; }
+        
+        .anim-controls { display: flex; gap: 8px; margin-bottom: 10px; }
+        .btn-anim { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ddd; background: #fff; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .btn-anim.active { background: #333; color: #fff; border-color: #333; }
+
+        .swap-btn { margin-bottom: 10px; }
+        .save-btn { background: #27ae60; margin-bottom: 10px; }
+        .save-btn:active { background: #1e8449; }
+
+        .share-btn { 
+            width: 100%; padding: 12px; background: #000; color: white; border: none; border-radius: 10px; 
+            font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; 
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            text-decoration: none; margin-top: 10px;
+        }
+        .share-btn:active { transform: scale(0.98); opacity: 0.8; }
+
+        .other-tools-link { margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 10px; text-align: center; }
+        .other-tools-link a { text-decoration: none; color: #333; font-size: 12px; font-weight: bold; border: 2px solid #333; padding: 8px 15px; border-radius: 30px; display: inline-block; transition: 0.3s; margin: 4px; }
+        .other-tools-link a:hover { background: #333; color: #fff; }
+
+        .usage-notes { font-size: 10px; color: #999; margin-top: 12px; line-height: 1.5; text-align: center; }
+
+        .info-box { background: #ffffff; padding: 15px; border-radius: 12px; margin-top: 12px; border: 1px solid #eee; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
+        .info-row { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; }
+        .info-row:not(:last-child) { border-bottom: 1px dashed #eee; margin-bottom: 4px; }
+        .info-label { color: #555; font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 4px; }
+        .info-value { font-weight: 800; font-size: 18px; color: #2c3e50; font-variant-numeric: tabular-nums; }
+        .unit { font-size: 11px; margin-left: 3px; color: #7f8c8d; font-weight: normal; }
+        
+        #view-label { 
+            position: absolute; 
+            bottom: 20px; 
+            right: 15px; 
+            background: rgba(0,0,0,0.7); 
+            color: white; 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            z-index: 90; 
+            pointer-events: none; 
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-panel">
+    <div class="panel-header" onclick="togglePanel()">
+        <h1 class="app-title">📸大头贴模拟器</h1>
+        <span id="toggle-text">关闭</span>
+    </div>
+
+    <div id="ui-content">
+        <p class="app-description">模拟大头贴的氛围。</p>
+        
+        <div class="input-group group-a">
+            <div class="section-header"><strong>A</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameA" placeholder="名字A" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.6;"><span class="hint">性别</span><select id="genderA" onchange="updateScene()"><option value="male">男</option><option value="female" selected>女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightA" value="158.0" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.35;"><span class="hint">色</span><input type="color" id="colorA" class="color-picker" value="#ffcc99" oninput="updateScene()"></div>
+            </div>
+        </div>
+
+        <div class="input-group group-b">
+            <div class="section-header"><strong>B</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameB" placeholder="名字B" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.6;"><span class="hint">性别</span><select id="genderB" onchange="updateScene()"><option value="male" selected>男</option><option value="female">女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightB" value="171.5" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.35;"><span class="hint">色</span><input type="color" id="colorB" class="color-picker" value="#ffad60" oninput="updateScene()"></div>
+            </div>
+        </div>
+
+        <div style="padding: 0 5px;">
+            <div class="anim-controls">
+                <button id="btn-shoot" class="btn-anim active" onclick="setMode('shoot')">📸 拍摄区</button>
+                <button id="btn-draw" class="btn-anim" onclick="setMode('draw')">🖌️ 涂鸦区</button>
+            </div>
+            <button class="switch-btn swap-btn" onclick="swapAB()">⇄ 交换A与B</button>
+            <button class="switch-btn" onclick="switchView()">🔄 切换视角</button>
+            <button class="switch-btn save-btn" onclick="savePurikuraImage()">💾 保存大头贴</button>
+        </div>
+        
+        <div id="info-container">
+            <div class="info-box" id="info"></div>
+            <button class="share-btn" onclick="shareToX()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg> 分享结果
+            </button>
+            <div class="other-tools-link">
+                <p style="font-size: 10px; color: #888; margin-bottom: 8px;">也来看看这些❣🤩</p>
+                <a href="../">体格差模拟器一览</a>
+            </div>
+            <div class="usage-notes">
+                截图投稿、加工、描图等请随意享用。<br>
+                ※请勿用于营利或商业用途。
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="view-label"></div>
+<div id="canvas-container"></div>
+
+<script type="module">
+    import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
+
+    let scene, camera, renderer, clock;
+    let personA, personB, walkGroup;
+    let currentView = '3rd';
+    let rotation = { x: 0, y: 0 }, camDist = 3, isDragging = false, previousTouch = null, initialPinchDist = null;
+    let currentMode = 'shoot';
+
+    let purikuraCamera, purikuraRenderTarget, screenMesh, frontWallMesh;
+    let boothRenderTarget;
+    let displayPositions = [];
+
+    const BOOTH_WIDTH = 1.8;
+    const BOOTH_DEPTH = 1.3;
+    const BOOTH_HEIGHT = 2.3;
+    const CAMERA_HEIGHT = 1.6;
+
+    let targetPosA = new THREE.Vector3();
+    let targetPosB = new THREE.Vector3();
+
+    const CAMERA_POSITION = new THREE.Vector3(0, CAMERA_HEIGHT, (BOOTH_DEPTH / 2) - 0.02);
+    const FIXED_LOOK_AT_TARGET = new THREE.Vector3(0, CAMERA_HEIGHT * 0.9, 0);
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+        camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1000);
+        camera.rotation.order = 'YXZ';
+        
+        renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 2.5));
+        scene.add(new THREE.GridHelper(200, 400, 0xeeeeee, 0xf5f5f5));
+
+        purikuraCamera = new THREE.PerspectiveCamera(60, 3 / 4, 0.01, 1000); 
+        purikuraCamera.position.copy(CAMERA_POSITION);
+
+        purikuraRenderTarget = new THREE.WebGLRenderTarget(1200, 1600, { antialias: true });
+        purikuraRenderTarget.texture.colorSpace = THREE.SRGBColorSpace;
+        
+        boothRenderTarget = new THREE.WebGLRenderTarget(600, 800, { antialias: true });
+        boothRenderTarget.texture.colorSpace = THREE.SRGBColorSpace;
+
+        createPurikuraBooth();
+
+        walkGroup = new THREE.Group();
+        scene.add(walkGroup);
+
+        clock = new THREE.Clock();
+        setupControls();
+
+        window.addEventListener('resize', onWindowResize);
+        
+        window.updateScene = updateScene;
+        window.switchView = switchView;
+        window.swapAB = swapAB;
+        window.shareToX = shareToX;
+        window.setMode = setMode;
+        window.savePurikuraImage = savePurikuraImage;
+        window.togglePanel = () => {
+            const panel = document.getElementById('ui-panel');
+            const text = document.getElementById('toggle-text');
+            panel.classList.toggle('collapsed');
+            text.innerText = panel.classList.contains('collapsed') ? '打开' : '关闭';
+        };
+
+        // 入力フォームからフォーカスが外れた際に、パネルのスクロール位置を上部へリセットする
+        document.querySelectorAll('#ui-panel input, #ui-panel select').forEach(element => {
+            element.addEventListener('blur', () => {
+                const panel = document.getElementById('ui-panel');
+                if (panel) {
+                    panel.scrollTop = 0;
+                }
+                // iOS Safari等の画面全体のズレ防止策
+                window.scrollTo(0, 0);
+            });
+        });
+
+        updateScene();
+        animate();
+    }
+
+    function createPurikuraBooth() {
+        const boothGroup = new THREE.Group();
+        const wallMat = new THREE.MeshPhongMaterial({ color: 0xeeeeee, side: THREE.DoubleSide, transparent: true, opacity: 0.4 });
+        const backWallMat = new THREE.MeshPhongMaterial({ color: 0xdddddd, side: THREE.DoubleSide }); 
+        const greenMat = new THREE.MeshPhongMaterial({ color: 0xaaddaa, side: THREE.DoubleSide }); 
+
+        const floor = new THREE.Mesh(new THREE.PlaneGeometry(BOOTH_WIDTH, BOOTH_DEPTH), wallMat);
+        floor.rotation.x = Math.PI / 2;
+        floor.position.y = 0;
+        boothGroup.add(floor);
+
+        const roof = new THREE.Mesh(new THREE.PlaneGeometry(BOOTH_WIDTH, BOOTH_DEPTH), wallMat);
+        roof.rotation.x = Math.PI / 2;
+        roof.position.y = BOOTH_HEIGHT;
+        boothGroup.add(roof);
+
+        const backWall = new THREE.Mesh(new THREE.PlaneGeometry(BOOTH_WIDTH, BOOTH_HEIGHT), backWallMat);
+        backWall.position.set(0, BOOTH_HEIGHT / 2, BOOTH_DEPTH / 2);
+        boothGroup.add(backWall);
+
+        frontWallMesh = new THREE.Mesh(new THREE.PlaneGeometry(BOOTH_WIDTH, BOOTH_HEIGHT), greenMat);
+        frontWallMesh.position.set(0, BOOTH_HEIGHT / 2, -BOOTH_DEPTH / 2);
+        boothGroup.add(frontWallMesh);
+
+        const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(BOOTH_DEPTH, BOOTH_HEIGHT), wallMat);
+        leftWall.rotation.y = Math.PI / 2;
+        leftWall.position.set(-BOOTH_WIDTH / 2, BOOTH_HEIGHT / 2, 0);
+        boothGroup.add(leftWall);
+
+        const rightWall = new THREE.Mesh(new THREE.PlaneGeometry(BOOTH_DEPTH, BOOTH_HEIGHT), wallMat);
+        rightWall.rotation.y = Math.PI / 2;
+        rightWall.position.set(BOOTH_WIDTH / 2, BOOTH_HEIGHT / 2, 0);
+        boothGroup.add(rightWall);
+
+        const addW = 1.8; const addD = 0.7; const addH = 2.3;
+        const addBooth = new THREE.Mesh(new THREE.BoxGeometry(addW, addH, addD), new THREE.MeshPhongMaterial({ color: 0xeeeeee, side: THREE.DoubleSide, transparent: true, opacity: 0.3 }));
+        addBooth.position.set(0, addH / 2, (BOOTH_DEPTH / 2) + (addD / 2));
+        boothGroup.add(addBooth);
+
+        const addW2 = 0.9; const addD2 = 1.0; const addH2 = 2.3;
+        const mat2 = new THREE.MeshPhongMaterial({ color: 0xeeeeee, side: THREE.DoubleSide, transparent: true, opacity: 0.3 });
+        const b1 = new THREE.Mesh(new THREE.BoxGeometry(addW2, addH2, addD2), mat2);
+        b1.position.set(-addW2/2, addH2 / 2, (BOOTH_DEPTH / 2) + addD + (addD2 / 2));
+        boothGroup.add(b1);
+        const b2 = new THREE.Mesh(new THREE.BoxGeometry(addW2, addH2, addD2), mat2);
+        b2.position.set(addW2/2, addH2 / 2, (BOOTH_DEPTH / 2) + addD + (addD2 / 2));
+        boothGroup.add(b2);
+
+        const dispMat = new THREE.MeshBasicMaterial({ color: 0x333333 });
+        const dw = 0.53, dh = 0.3;
+        const DISPLAY_HEIGHT = 0.8; 
+        const TILT_ANGLE = 30 * Math.PI / 180;
+        
+        const createTwoPhotoDisplay = (xSign, targetTexture, flipX) => {
+            const group = new THREE.Group();
+            group.position.set(xSign * 0.01, DISPLAY_HEIGHT + dh, (BOOTH_DEPTH / 2) + addD + (addD2 / 2));
+            const display = new THREE.Mesh(new THREE.PlaneGeometry(dw, dh), dispMat);
+            display.rotation.x = -TILT_ANGLE; 
+            display.position.y = -(dh/2) * Math.cos(TILT_ANGLE);
+            display.position.z = (dh/2) * Math.sin(TILT_ANGLE);
+            group.add(display);
+            
+            const photoH = dh * 0.7; 
+            const photoW = photoH * (3 / 4);
+            const screenMat = new THREE.MeshBasicMaterial({ map: targetTexture });
+            const p1 = new THREE.Mesh(new THREE.PlaneGeometry(photoW, photoH), screenMat);
+            p1.position.set(-photoW/2 - 0.02, -(dh/2)*Math.cos(TILT_ANGLE), (dh/2)*Math.sin(TILT_ANGLE) + 0.01);
+            p1.rotation.x = -TILT_ANGLE;
+            if(flipX) p1.scale.x = -1;
+            group.add(p1);
+            
+            const target = new THREE.Object3D();
+            target.position.set(0, -(dh/2)*Math.cos(TILT_ANGLE), (dh/2)*Math.sin(TILT_ANGLE));
+            group.add(target);
+            displayPositions.push(target);
+            
+            const p2 = new THREE.Mesh(new THREE.PlaneGeometry(photoW, photoH), screenMat);
+            p2.position.set(photoW/2 + 0.02, -(dh/2)*Math.cos(TILT_ANGLE), (dh/2)*Math.sin(TILT_ANGLE) + 0.01);
+            p2.rotation.x = -TILT_ANGLE;
+            if(flipX) p2.scale.x = -1;
+            group.add(p2);
+            return group;
+        };
+        const d1 = createTwoPhotoDisplay(-1, purikuraRenderTarget.texture, true);
+        d1.rotation.y = Math.PI / 2;
+        boothGroup.add(d1);
+        const d2 = createTwoPhotoDisplay(1, purikuraRenderTarget.texture, true);
+        d2.rotation.y = -Math.PI / 2;
+        boothGroup.add(d2);
+
+        const dispW = 0.55;
+        const dispH = 0.31;
+        const displayMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+        const displayOrig = new THREE.Mesh(new THREE.BoxGeometry(dispW, dispH, 0.02), displayMat);
+        displayOrig.position.set(0, CAMERA_HEIGHT - (dispH / 2) - 0.02, (BOOTH_DEPTH / 2) - 0.01);
+        boothGroup.add(displayOrig);
+
+        const photoH = dispH - 0.04;
+        const photoW = photoH * (3 / 4);
+        const screenMat = new THREE.MeshBasicMaterial({ map: boothRenderTarget.texture });
+        screenMesh = new THREE.Mesh(new THREE.PlaneGeometry(photoW, photoH), screenMat);
+        screenMesh.position.set(0, CAMERA_HEIGHT - (dispH / 2) - 0.02, (BOOTH_DEPTH / 2) - 0.021);
+        screenMesh.rotation.y = Math.PI; 
+        screenMesh.scale.x = -1;
+        boothGroup.add(screenMesh);
+
+        const lensMat = new THREE.MeshBasicMaterial({ color: 0x050505 });
+        const lens = new THREE.Mesh(new THREE.SphereGeometry(0.02, 16, 16), lensMat);
+        lens.position.copy(CAMERA_POSITION);
+        boothGroup.add(lens);
+
+        scene.add(boothGroup);
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    function swapAB() {
+        const fields = ['name', 'gender', 'height', 'color'];
+        fields.forEach(field => {
+            const elA = document.getElementById(field + 'A');
+            const elB = document.getElementById(field + 'B');
+            const tmp = elA.value;
+            elA.value = elB.value;
+            elB.value = tmp;
+        });
+        updateScene();
+    }
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.getElementById('btn-shoot').classList.toggle('active', mode === 'shoot');
+        document.getElementById('btn-draw').classList.toggle('active', mode === 'draw');
+        updateScene();
+    }
+
+    function createMannequin(color, heightCm, gender, name, role) {
+        const group = new THREE.Group();
+        const h = heightCm * 0.01;
+        const bodyMat = new THREE.MeshPhongMaterial({ color: color, transparent: true, opacity: 0.85 });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+        const headH = h * 0.13, neckH = h * 0.05, torsoH = h * 0.37, legH = h * 0.45;
+        const torsoW = (gender === 'male' ? 0.26 : 0.21) * (h/1.7);
+        const torsoDepth = torsoW * 0.5;
+        const spine = new THREE.Group();
+        spine.position.y = legH;
+        group.add(spine);
+        group.spine = spine;
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoW, torsoH, torsoDepth), bodyMat);
+        torso.position.y = torsoH * 0.5;
+        spine.add(torso);
+        group.torso = torso;
+        const headBox = new THREE.Group(); 
+        headBox.position.y = torsoH + neckH;
+        spine.add(headBox);
+        group.headParts = headBox;
+        const head = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.8, 16, 16), bodyMat);
+        head.position.y = headH * 0.5; 
+        headBox.add(head);
+        const eyeOffset = new THREE.Vector3(0, headH * 0.5, headH * 0.2); 
+        group.eyeOffset = eyeOffset; 
+        [-1, 1].forEach(side => {
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.12, 12, 12), eyeMat);
+            eye.position.set(side * (headH * 0.28), headH * 0.5, (headH * 0.7)); 
+            headBox.add(eye);
+        });
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(headH*0.3, headH*0.3, neckH, 16), bodyMat);
+        neck.position.y = torsoH + (neckH * 0.5); 
+        spine.add(neck);
+        group.arms = [];
+        [-1, 1].forEach(side => {
+            const anchor = new THREE.Group();
+            anchor.position.set(side * (torsoW * 0.6), torsoH - (torsoW*0.15), 0);
+            const armLen = h * 0.38;
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.3, armLen, torsoW*0.3), bodyMat);
+            mesh.position.y = -armLen * 0.5; 
+            anchor.add(mesh); 
+            spine.add(anchor); 
+            group.arms.push(anchor);
+            anchor.rotation.z = side * (5 * Math.PI / 180);
+        });
+        group.legs = [];
+        [-1, 1].forEach(side => {
+            const anchor = new THREE.Group(); 
+            anchor.position.set(side * (torsoW * 0.25), legH, 0);
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.4, legH, torsoW*0.4), bodyMat);
+            mesh.position.y = -legH * 0.5; 
+            anchor.add(mesh); 
+            group.add(anchor); 
+            group.legs.push(anchor);
+        });
+        const canvas = document.createElement('canvas'); 
+        canvas.width = 512; canvas.height = 128;
+        const ctx = canvas.getContext('2d'); 
+        ctx.font = "bold 40px sans-serif"; 
+        ctx.fillStyle = "#333"; 
+        ctx.textAlign = "center";
+        ctx.fillText(`${name || role} (${heightCm.toFixed(1)}cm)`, 256, 64);
+        const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+        sprite.scale.set(1.2, 0.3, 1); 
+        sprite.position.y = h + 0.2; 
+        group.add(sprite);
+        group.nameTag = sprite;
+        group.userData = { height: h, role: role, depth: torsoDepth, width: torsoW, torsoH: torsoH, neckH: neckH, headH: headH, legH: legH };
+        group.position.y = 0; group.position.z = 0;
+        return group;
+    }
+
+    function updateScene() {
+        const hA = parseFloat(document.getElementById('heightA').value)||158, hB = parseFloat(document.getElementById('heightB').value)||171.5;
+        if(personA) walkGroup.remove(personA); if(personB) walkGroup.remove(personB);
+        personA = createMannequin(document.getElementById('colorA').value, hA, document.getElementById('genderA').value, document.getElementById('nameA').value, 'A');
+        personB = createMannequin(document.getElementById('colorB').value, hB, document.getElementById('genderB').value, document.getElementById('nameB').value, 'B');
+        
+        if (currentMode === 'draw') {
+            const drawBoothZ = (BOOTH_DEPTH / 2) + 0.7 + 0.5;
+            const boothX = -0.45;
+            const gap = 0.45;
+            personA.position.set(boothX, 0, drawBoothZ - gap/2);
+            personB.position.set(boothX, 0, drawBoothZ + gap/2);
+            personA.rotation.y = Math.PI / 2; personB.rotation.y = Math.PI / 2;
+        } else {
+            calculateAutomaticPositions();
+            applyPose(personA, personB);
+            applyPose(personB, personA);
+            clampInsideBooth(personA);
+            clampInsideBooth(personB);
+            personA.position.copy(targetPosA);
+            personB.position.copy(targetPosB);
+        }
+        walkGroup.add(personA, personB);
+        const nA = document.getElementById('nameA').value||'A', nB = document.getElementById('nameB').value||'B';
+        
+        // 現在 的视角（AまたはB）に応じた名字を取得し、ラベルのテキストを更新
+        const myName = (currentView === 'A') ? nA : nB;
+        document.getElementById('view-label').innerText = (currentView === '3rd') ? '第三人称视角' : (currentView === 'puri') ? '大头贴相机视角' : `${myName} 的视角`;
+
+        document.getElementById('info').innerHTML = `<div class="info-row"><span class="info-label">📏 身高差</span><span class="info-value">${Math.abs(hA-hB).toFixed(1)}<span class="unit">cm</span></span></div>`;
+    }
+
+    function applyPose(p, other) {
+        const hDiff = p.userData.height - other.userData.height;
+        let currentBend = 0;
+        if (hDiff > 0.05) { 
+            currentBend = Math.min(0.5, hDiff * 2.0); 
+            p.legs.forEach(l => l.rotation.x = -currentBend * 0.8);
+            p.spine.rotation.x = currentBend;
+            const headDepthOffset = Math.sin(currentBend) * (p.userData.torsoH + p.userData.neckH + p.userData.headH * 0.5);
+            if (p.userData.role === 'A') targetPosA.z += -headDepthOffset;
+            else targetPosB.z += -headDepthOffset;
+            p.position.y = -(1 - Math.cos(currentBend)) * p.userData.legH;
+        } else {
+            p.position.y = 0; p.spine.rotation.x = 0; p.legs.forEach(l => l.rotation.x = 0);
+        }
+    }
+
+    function calculateAutomaticPositions() {
+        const gap = 0.05;
+        const totalWidth = personA.userData.width + personB.userData.width + gap;
+        targetPosA.set(-(totalWidth / 2) + personA.userData.width / 2, 0, 0);
+        targetPosB.set((totalWidth / 2) - personB.userData.width / 2, 0, 0);
+    }
+
+    function clampInsideBooth(p) {
+        const limitX = (BOOTH_WIDTH / 2) - (p.userData.width * 0.5);
+        const limitZ = (BOOTH_DEPTH / 2) - (p.userData.depth * 0.8);
+        if (p.userData.role === 'A') {
+            targetPosA.x = Math.max(-limitX, Math.min(limitX, targetPosA.x));
+            targetPosA.z = Math.max(-limitZ, Math.min(limitZ - 0.2, targetPosA.z));
+        } else {
+            targetPosB.x = Math.max(-limitX, Math.min(limitX, targetPosB.x));
+            targetPosB.z = Math.max(-limitZ, Math.min(limitZ - 0.2, targetPosB.z));
+        }
+    }
+
+    function updateGaze() {
+        if (!personA || !personB) return;
+        
+        const inwardOffset = 0.15;
+
+        if (currentMode === 'draw') {
+            const targetPos = displayPositions[0].getWorldPosition(new THREE.Vector3());
+            personA.headParts.lookAt(targetPos);
+            personB.headParts.lookAt(targetPos);
+        } else {
+            const cameraDir = new THREE.Vector3(0, 0, -10);
+            personA.headParts.lookAt(cameraDir);
+            personB.headParts.lookAt(cameraDir);
+            personA.headParts.rotation.y += Math.PI + (inwardOffset * Math.sign(personA.position.x));
+            personB.headParts.rotation.y += Math.PI + (inwardOffset * Math.sign(personB.position.x));
+        }
+    }
+
+    function savePurikuraImage() {
+        const width = purikuraRenderTarget.width;
+        const height = purikuraRenderTarget.height;
+        const buffer = new Uint8Array(width * height * 4);
+        renderer.readRenderTargetPixels(purikuraRenderTarget, 0, 0, width, height, buffer);
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const context = canvas.getContext('2d');
+        const imageData = context.createImageData(width, height);
+        imageData.data.set(buffer);
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = width; tempCanvas.height = height;
+        tempCanvas.getContext('2d').putImageData(imageData, 0, 0);
+        context.scale(1, -1);
+        context.drawImage(tempCanvas, 0, -height);
+        const dataUrl = canvas.toDataURL('image/png');
+
+        const container = document.createElement('div');
+        container.style.position = 'fixed';
+        container.style.top = '0';
+        container.style.left = '0';
+        container.style.width = '100vw';
+        container.style.height = '100vh';
+        container.style.backgroundColor = 'rgba(0,0,0,0.9)';
+        container.style.zIndex = '9999';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.alignItems = 'center';
+        container.style.justifyContent = 'center';
+
+        const img = document.createElement('img');
+        img.src = dataUrl;
+        img.style.maxWidth = '90%';
+        img.style.maxHeight = '80%';
+        img.style.objectFit = 'contain';
+
+        const msg = document.createElement('div');
+        msg.innerText = '涂鸦功能力有不逮，只好放弃了…！😭\n大家可以自由加工，改成自己喜欢的风格尽情享受🙆';
+        msg.style.color = '#fff';
+        msg.style.fontSize = '14px';
+        msg.style.marginBottom = '15px';
+        msg.style.textAlign = 'center';
+        msg.style.whiteSpace = 'pre-wrap';
+
+        const closeBtn = document.createElement('button');
+        closeBtn.innerText = '关闭';
+        closeBtn.style.padding = '10px 30px';
+        closeBtn.style.fontSize = '16px';
+        closeBtn.style.borderRadius = '25px';
+        closeBtn.style.border = 'none';
+        closeBtn.style.background = '#fff';
+        closeBtn.style.fontWeight = 'bold';
+        closeBtn.onclick = () => document.body.removeChild(container);
+
+        container.appendChild(img);
+        container.appendChild(msg);
+        container.appendChild(closeBtn);
+        document.body.appendChild(container);
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        updateGaze();
+
+        personA.nameTag.visible = false; personB.nameTag.visible = false;
+        personA.headParts.visible = true; personB.headParts.visible = true;
+        personA.torso.visible = true; personB.torso.visible = true;
+        
+        purikuraCamera.position.copy(CAMERA_POSITION);
+        purikuraCamera.lookAt(FIXED_LOOK_AT_TARGET);
+        
+        if (currentMode === 'shoot') {
+            const originalMat = frontWallMesh.material;
+            frontWallMesh.material = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            renderer.setRenderTarget(purikuraRenderTarget);
+            renderer.render(scene, purikuraCamera);
+            renderer.setRenderTarget(null);
+            frontWallMesh.material = originalMat;
+        }
+
+        renderer.setRenderTarget(boothRenderTarget);
+        renderer.render(scene, purikuraCamera);
+        renderer.setRenderTarget(null);
+        
+        if(currentView === 'A' || currentView === 'B') {
+            const self = (currentView === 'A' ? personA : personB);
+            self.headParts.visible = false; 
+        }
+        
+        personA.nameTag.visible = (currentView !== 'A');
+        personB.nameTag.visible = (currentView !== 'B');
+        
+        const centerPos = new THREE.Vector3().addVectors(personA.position, personB.position).multiplyScalar(0.5);
+        centerPos.y = (personA.userData.height + personB.userData.height) * 0.25;
+
+        if (currentView === '3rd') {
+            camera.fov = 50; camera.updateProjectionMatrix();
+            camera.position.set(centerPos.x + Math.sin(rotation.y) * camDist, centerPos.y + Math.sin(rotation.x) * camDist, centerPos.z + Math.cos(rotation.y) * camDist);
+            camera.lookAt(centerPos);
+        } else if (currentView === 'puri') {
+            camera.fov = 60; camera.updateProjectionMatrix();
+            camera.position.copy(CAMERA_POSITION); camera.lookAt(FIXED_LOOK_AT_TARGET);
+        } else {
+            camera.fov = 50; camera.updateProjectionMatrix();
+            const self = (currentView === 'A' ? personA : personB);
+            const eyePos = self.eyeOffset.clone().applyMatrix4(self.headParts.matrixWorld);
+            camera.position.copy(eyePos);
+            camera.rotation.set(rotation.x, rotation.y, 0, 'YXZ');
+        }
+        renderer.render(scene, camera);
+    }
+
+    function setupControls() {
+        const c = document.getElementById('canvas-container');
+        const move = (dx, dy) => {
+            rotation.y -= dx * 0.005; rotation.x -= dy * 0.005;
+            rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, rotation.x));
+        };
+        c.addEventListener('mousedown', () => isDragging = true);
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousemove', e => { if(isDragging) move(e.movementX, e.movementY); });
+
+        c.addEventListener('wheel', e => {
+            if (currentView === '3rd') {
+                camDist += e.deltaY * 0.002;
+                camDist = Math.max(0.5, Math.min(10, camDist));
+            }
+        }, { passive: true });
+
+        c.addEventListener('touchstart', e => {
+            if (e.touches.length === 1) {
+                isDragging = true;
+                previousTouch = e.touches[0];
+                initialPinchDist = null;
+            } else if (e.touches.length === 2 && currentView === '3rd') {
+                isDragging = false;
+                initialPinchDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        }, { passive: false });
+
+        window.addEventListener('touchend', () => {
+            isDragging = false;
+            initialPinchDist = null;
+        });
+
+        window.addEventListener('touchmove', e => {
+            if (e.touches.length === 1 && isDragging && previousTouch) {
+                if (e.cancelable) e.preventDefault();
+                const touch = e.touches[0];
+                move(touch.clientX - previousTouch.clientX, touch.clientY - previousTouch.clientY);
+                previousTouch = touch;
+            } else if (e.touches.length === 2 && initialPinchDist !== null && currentView === '3rd') {
+                if (e.cancelable) e.preventDefault();
+                const currentDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const diff = currentDist - initialPinchDist;
+                camDist -= diff * 0.005;
+                camDist = Math.max(0.5, Math.min(10, camDist));
+                initialPinchDist = currentDist;
+            }
+        }, { passive: false });
+    }
+
+    function switchView() {
+        const order = ['3rd', 'A', 'B', 'puri'];
+        currentView = order[(order.indexOf(currentView) + 1) % 4];
+        
+        if (currentView === 'A' || currentView === 'B') {
+            if (currentMode === 'draw') {
+                const targetPos = displayPositions[0].getWorldPosition(new THREE.Vector3());
+                camera.position.copy((currentView === 'A' ? personA : personB).eyeOffset.clone().applyMatrix4((currentView === 'A' ? personA : personB).headParts.matrixWorld));
+                camera.lookAt(targetPos);
+                
+                const quaternion = camera.quaternion.clone();
+                const euler = new THREE.Euler().setFromQuaternion(quaternion, 'YXZ');
+                rotation.x = euler.x;
+                rotation.y = euler.y;
+            } else {
+                rotation.x = 0; rotation.y = Math.PI;
+            }
+        } else {
+            rotation.x = 0; rotation.y = 0;
+        }
+        updateScene();
+    }
+
+    function shareToX() {
+        const nA = document.getElementById('nameA').value || 'A', nB = document.getElementById('nameB').value || 'B';
+        const hA = parseFloat(document.getElementById('heightA').value) || 158.0, hB = parseFloat(document.getElementById('heightB').value) || 171.5;
+        const text = `${nA}(${hA.toFixed(1)}cm)和${nB}(${hB.toFixed(1)}cm)拍了大头贴！\n#大头贴模拟器\n`;
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.href)}`, '_blank');
+    }
+
+    init();
+</script>
+</body>
+</html>

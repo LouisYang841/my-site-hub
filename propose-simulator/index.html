@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>💘求婚模拟器</title>
+<style>
+:root{--panel-width:300px}
+body{margin:0;font-family:'Helvetica Neue',Arial,"Hiragino Kaku Gothic ProN","Hiragino Sans",Meiryo,sans-serif;background:#fff;overflow:hidden}
+#ui-panel{position:absolute;top:10px;left:10px;width:var(--panel-width);max-height:calc(100vh - 20px);max-height:calc(100dvh - 20px);background:rgba(255,255,255,.95);padding:15px 15px 40px;border-radius:15px;z-index:100;box-shadow:0 8px 32px rgba(0,0,0,.1);overflow-y:auto;-webkit-overflow-scrolling:touch;touch-action:pan-y;border:1px solid rgba(255,255,255,.3);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);box-sizing:border-box;transition:all .2s ease-out}
+#canvas-container{width:100vw;height:100vh;cursor:move;touch-action:none}
+#ui-panel.collapsed{max-height:none!important;padding:10px 15px!important;overflow:hidden!important;width:auto;max-width:calc(100vw - 20px)}
+@media screen and (max-width:480px){:root{--panel-width:calc(100vw - 20px)}#ui-panel{left:10px;right:10px}#ui-panel.collapsed{right:auto}}
+@media screen and (orientation:landscape) and (max-height:500px){:root{--panel-width:260px}#ui-panel{top:5px;left:5px;padding:10px;max-height:calc(100vh - 10px)}.app-title{font-size:1.1rem}.input-group{padding:8px;margin-bottom:5px}}
+.panel-header{display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;gap:10px;position:sticky;top:-15px;background:rgba(255,255,255,.95);padding:10px 15px;margin:-15px -15px 10px -15px;z-index:10;border-bottom:1px solid rgba(0,0,0,.05)}
+#toggle-text{font-size:12px;font-weight:bold;color:#666;background:#eee;padding:4px 10px;border-radius:10px;white-space:nowrap}
+.collapsed #ui-content{display:none}
+.app-title{font-size:1.2rem;margin:0;color:#333;font-weight:bold;white-space:nowrap}
+.app-description{font-size:11px;color:#777;margin-top:8px;margin-bottom:5px;line-height:1.5;text-align:center}
+.input-group{display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:12px;margin-bottom:10px}
+.group-a{background:#fff5f0;border:1px solid #ffe0d0}
+.group-b{background:#f0f7ff;border:1px solid #d0e7ff}
+.group-layout{background:#f9f9f9;border:1px solid #eee}
+.section-header{display:flex;align-items:center;gap:8px;margin-bottom:3px}
+.section-header strong{font-size:15px;color:#444}
+.input-row{display:flex;gap:8px;align-items:flex-end;width:100%}
+.input-item{display:flex;flex-direction:column;flex:1;min-width:0}
+.hint{font-size:10px;color:#999;margin-bottom:2px;font-weight:bold}
+input,select{padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px;background:#fff;color:#333;width:100%;box-sizing:border-box}
+input[type=number]::-webkit-outer-spin-button,input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield}
+.color-picker{width:100%;height:38px;border:2px solid #999;border-radius:4px;cursor:pointer;padding:0;background:none;appearance:none;-webkit-appearance:none}
+.radio-switch{display:flex;gap:4px;background:#eee;padding:3px;border-radius:8px;margin-top:2px}
+.radio-switch label{flex:1;text-align:center;font-size:11px;font-weight:bold;padding:6px 0;border-radius:6px;cursor:pointer;color:#666;transition:.2s;user-select:none}
+.radio-switch input{display:none}
+.radio-switch input:checked+label{background:#fff;color:#333;box-shadow:0 2px 4px rgba(0,0,0,.1)}
+.switch-btn{width:100%;padding:12px;background:#333;color:#fff;border:none;border-radius:25px;font-weight:bold;cursor:pointer;transition:.2s;font-size:14px;-webkit-tap-highlight-color:transparent;margin-bottom:10px}
+.switch-btn:active{background:#000;transform:scale(.98)}
+.swap-btn{margin-bottom:5px}
+.share-btn{width:100%;padding:12px;background:#000;color:#fff;border:none;border-radius:10px;font-weight:bold;cursor:pointer;transition:.2s;font-size:13px;display:flex;align-items:center;justify-content:center;gap:8px;text-decoration:none;margin-top:10px}
+.share-btn:active{transform:scale(.98);opacity:.8}
+.other-tools-link{margin-top:20px;padding:10px;background:#f9f9f9;border-radius:10px;text-align:center}
+.other-tools-link a{text-decoration:none;color:#333;font-size:12px;font-weight:bold;border:2px solid #333;padding:8px 15px;border-radius:30px;display:inline-block;transition:.3s;margin:4px}
+.other-tools-link a:hover{background:#333;color:#fff}
+.usage-notes{font-size:10px;color:#999;margin-top:12px;line-height:1.5;text-align:center}
+.info-box{background:#fff;padding:15px;border-radius:12px;margin-top:12px;border:1px solid #eee;box-shadow:inset 0 2px 4px rgba(0,0,0,.02)}
+.info-row{display:flex;justify-content:space-between;align-items:baseline;padding:6px 0}
+.info-label{color:#555;font-size:12px;font-weight:bold;display:flex;align-items:center;gap:4px}
+.info-value{font-weight:800;font-size:18px;color:#2c3e50;font-variant-numeric:tabular-nums}
+.unit{font-size:11px;margin-left:3px;color:#7f8c8d;font-weight:normal}
+#view-label{position:absolute;bottom:20px;right:15px;background:rgba(0,0,0,.7);color:#fff;padding:8px 16px;border-radius:20px;font-size:12px;font-weight:bold;z-index:90;pointer-events:none}
+.crosshair{position:absolute;top:50%;left:50%;width:20px;height:20px;border:2px solid rgba(0,0,0,.15);border-radius:50%;transform:translate(-50%,-50%);pointer-events:none}
+</style>
+</head>
+<body>
+
+<div id="ui-panel">
+    <div class="panel-header" onclick="togglePanel()">
+        <h1 class="app-title">💘求婚模拟器</h1>
+        <span id="toggle-text">关闭</span>
+    </div>
+    <div id="ui-content">
+        <p class="app-description">根据性别和身高模拟求婚场景。</p>
+
+        <div class="input-group group-a">
+            <div class="section-header"><strong>A（被求婚的一方）</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameA" placeholder="名字A" oninput="updateScene()"></div>
+                <div class="input-item" style="flex:.6"><span class="hint">性别</span><select id="genderA" onchange="updateScene()"><option value="male">男</option><option value="female" selected>女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightA" value="158.0" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex:.35"><span class="hint">色</span><input type="color" id="colorA" class="color-picker" value="#ffcc99" oninput="updateScene()"></div>
+            </div>
+        </div>
+
+        <div class="input-group group-b">
+            <div class="section-header"><strong>B（求婚的一方）</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameB" placeholder="名字B" oninput="updateScene()"></div>
+                <div class="input-item" style="flex:.6"><span class="hint">性别</span><select id="genderB" onchange="updateScene()"><option value="male" selected>男</option><option value="female">女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightB" value="171.5" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex:.35"><span class="hint">色</span><input type="color" id="colorB" class="color-picker" value="#ffad60" oninput="updateScene()"></div>
+            </div>
+        </div>
+
+        <div class="input-group group-layout">
+            <div class="section-header"><strong>求婚设置</strong></div>
+            <div class="input-item" style="margin-bottom:8px">
+                <span class="hint">求婚姿势（B对A）</span>
+                <div class="radio-switch">
+                    <input type="radio" id="pose-hand" name="confessPose" value="hand" checked onchange="updateScene()"><label for="pose-hand">✋手</label>
+                    <input type="radio" id="pose-letter" name="confessPose" value="letter" onchange="updateScene()"><label for="pose-letter">💌信</label>
+                    <input type="radio" id="pose-choco" name="confessPose" value="choco" onchange="updateScene()"><label for="pose-choco">🍫巧克力</label>
+                    <input type="radio" id="pose-rose" name="confessPose" value="rose" onchange="updateScene()"><label for="pose-rose">🌹玫瑰</label>
+                    <input type="radio" id="pose-ring" name="confessPose" value="ring" onchange="updateScene()"><label for="pose-ring">💍戒指</label>
+                </div>
+            </div>
+            <div class="input-item" id="hand-side-box" style="margin-bottom:8px">
+                <span class="hint">伸出的手（B的手）</span>
+                <div class="radio-switch">
+                    <input type="radio" id="side-l" name="handSide" value="left" checked onchange="updateScene()"><label for="side-l">左手</label>
+                    <input type="radio" id="side-b" name="handSide" value="both" onchange="updateScene()"><label for="side-b">双手</label>
+                    <input type="radio" id="side-r" name="handSide" value="right" onchange="updateScene()"><label for="side-r">右手</label>
+                </div>
+            </div>
+            <div class="input-item">
+                <span class="hint">求婚结果</span>
+                <div class="radio-switch">
+                    <input type="radio" id="res-ok" name="confessResult" value="success" checked onchange="updateScene()"><label for="res-ok">成功</label>
+                    <input type="radio" id="res-ng" name="confessResult" value="fail" onchange="updateScene()"><label for="res-ng">失败</label>
+                </div>
+            </div>
+        </div>
+
+        <div style="padding:0 5px">
+            <button class="switch-btn swap-btn" onclick="swapAB()">⇄ 交换A与B</button>
+            <button class="switch-btn" onclick="switchView()">🔄 切换视角</button>
+        </div>
+
+        <div id="info-container">
+            <div class="info-box" id="info"></div>
+            <button class="share-btn" onclick="shareToX()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg> 分享结果
+            </button>
+            <div class="other-tools-link">
+                <p style="font-size:10px;color:#888;margin-bottom:8px">也来看看这些❣🤩</p>
+                <a href="../">体格差模拟器一览</a>
+            </div>
+            <div class="usage-notes">
+                截图投稿、加工、描图等请随意享用。<br>
+                ※请勿用于营利或商业用途。
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="view-label">第三人称视角</div>
+<div class="crosshair" id="crosshair" style="display:none"></div>
+<div id="canvas-container"></div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
+
+let scene, camera, renderer, personA, personB, walkGroup, propGroup, lastKey = '';
+let currentView = '3rd';
+const V = (x = 0, y = 0, z = 0) => new THREE.Vector3(x, y, z);
+const AXIS_X = V(1, 0, 0);
+const DEFAULT_ROT_3RD = { x: 0.2, y: 0.45 };
+const PITCH_MAX = Math.PI / 2;
+let rotation = { x: DEFAULT_ROT_3RD.x, y: DEFAULT_ROT_3RD.y }, camDist = 3, isDragging = false, previousTouch = null, initialPinchDist = null;
+const $ = id => document.getElementById(id);
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xffffff);
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1000);
+    camera.rotation.order = 'YXZ';
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    $('canvas-container').appendChild(renderer.domElement);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 2.5));
+    scene.add(new THREE.GridHelper(200, 400, 0xeeeeee, 0xf5f5f5));
+    walkGroup = new THREE.Group(); scene.add(walkGroup);
+    propGroup = new THREE.Group(); scene.add(propGroup);
+    setupControls();
+    window.addEventListener('resize', onWindowResize);
+    window.updateScene = updateScene; window.switchView = switchView; window.swapAB = swapAB; window.shareToX = shareToX;
+    window.togglePanel = () => {
+        const panel = $('ui-panel');
+        panel.classList.toggle('collapsed');
+        $('toggle-text').innerText = panel.classList.contains('collapsed') ? '打开' : '关闭';
+    };
+    document.querySelectorAll('#ui-panel input, #ui-panel select').forEach(el => {
+        el.addEventListener('blur', () => { $('ui-panel').scrollTop = 0; window.scrollTo(0, 0); });
+    });
+    updateScene();
+    animate();
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function swapAB() {
+    ['name', 'gender', 'height', 'color'].forEach(f => {
+        const a = $(f + 'A'), b = $(f + 'B'), t = a.value; a.value = b.value; b.value = t;
+    });
+    updateScene();
+}
+
+function createMannequin(color, heightCm, gender, name, role) {
+    const group = new THREE.Group();
+    const h = heightCm * 0.01;
+    const bodyMat = new THREE.MeshPhongMaterial({ color: color, transparent: true, opacity: 0.85 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+    const headH = h * 0.13, neckH = h * 0.05, torsoH = h * 0.37, legH = h * 0.45, eyeY = h * 0.94;
+    const torsoW = (gender === 'male' ? 0.26 : 0.21) * (h / 1.7);
+    const torsoDepth = torsoW * 0.5;
+
+    const headBox = new THREE.Group();
+    headBox.position.y = eyeY;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.8, 16, 16), bodyMat);
+    head.position.y = (h - headH * 0.5) - eyeY;
+    headBox.add(head);
+    [-1, 1].forEach(side => {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.12, 12, 12), eyeMat);
+        eye.position.set(side * (headH * 0.28), 0, headH * 0.7);
+        headBox.add(eye);
+    });
+    group.add(headBox);
+    group.headParts = headBox;
+
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(headH * 0.3, headH * 0.3, neckH, 16), bodyMat);
+    neck.position.y = h - headH - neckH * 0.5;
+    group.add(neck);
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoW, torsoH, torsoDepth), bodyMat);
+    torso.position.y = legH + torsoH * 0.5;
+    group.add(torso);
+
+    group.arms = [];
+    const armThickness = torsoW * 0.3;
+    const shoulderW = torsoW * 0.5 + armThickness * 0.2;
+    const shoulderY = legH + torsoH - torsoW * 0.15;
+    const armLen = h * 0.38;
+    [-1, 1].forEach(side => {
+        const anchor = new THREE.Group();
+        anchor.position.set(side * shoulderW, shoulderY, 0);
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(armThickness, armLen, torsoW * 0.3), bodyMat);
+        mesh.position.y = -armLen * 0.5;
+        anchor.half = armLen / 2;
+        anchor.add(mesh); group.add(anchor); group.arms.push(anchor);
+    });
+
+    group.legs = [];
+    [-1, 1].forEach(side => {
+        const anchor = new THREE.Group();
+        anchor.position.set(side * torsoW * 0.25, legH, 0);
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(torsoW * 0.4, legH, torsoW * 0.4), bodyMat);
+        mesh.position.y = -legH * 0.5;
+        anchor.half = legH / 2;
+        anchor.add(mesh); group.add(anchor); group.legs.push(anchor);
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.font = "bold 45px sans-serif"; ctx.fillStyle = "#333"; ctx.textAlign = "center";
+    ctx.fillText(`${name || (role === 'B' ? 'B' : 'A')} (${heightCm.toFixed(1)}cm)`, 256, 64);
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) }));
+    sprite.scale.set(1.5, 0.38, 1);
+    sprite.position.y = h + 0.3;
+    group.add(sprite);
+    group.nameTag = sprite;
+
+    group.userData = { height: h, eyeY, role, depth: torsoDepth, width: torsoW, armThick: armThickness, legH, torsoH, shoulderW, shoulderY };
+    return group;
+}
+
+// ===== 姿势用ヘルパー =====
+function applyLean(p, angle) {
+    const pivot = new THREE.Group();
+    pivot.position.y = p.userData.legH;
+    p.children.filter(c => !p.legs.includes(c)).forEach(c => { p.remove(c); c.position.y -= p.userData.legH; pivot.add(c); });
+    pivot.rotation.x = angle;
+    p.add(pivot);
+    p.pivot = pivot;
+}
+function addJoint(anchor) {
+    const mesh = anchor.children[0];
+    const half = mesh.geometry.parameters.height / 2;
+    mesh.scale.y = 0.5; mesh.position.y = -half / 2;
+    const joint = new THREE.Group();
+    joint.position.y = -half;
+    const lower = new THREE.Mesh(mesh.geometry, mesh.material);
+    lower.scale.y = 0.5; lower.position.y = -half / 2;
+    joint.add(lower); anchor.add(joint);
+    anchor.joint = joint; anchor.half = half;
+}
+function aim(node, dir) {
+    const d = dir.clone().normalize();
+    node.rotation.z = Math.asin(Math.max(-1, Math.min(1, d.x)));
+    node.rotation.x = Math.atan2(-d.z, -d.y);
+}
+function aimLimb(anchor, dirUpper, dirLower) {
+    aim(anchor, dirUpper);
+    aim(anchor.joint, dirLower.clone().applyQuaternion(anchor.quaternion.clone().invert()));
+}
+function solveTwoBone(S, T, l1, l2, pole) {
+    const v = T.clone().sub(S);
+    let d = v.length();
+    const maxD = (l1 + l2) * 0.999;
+    if (d > maxD) { v.setLength(maxD); d = maxD; }
+    if (d < 0.02) { v.set(0, -0.02, 0); d = 0.02; }
+    const dir = v.clone().normalize();
+    const a = (l1 * l1 - l2 * l2 + d * d) / (2 * d);
+    const h = Math.sqrt(Math.max(0, l1 * l1 - a * a));
+    const p = pole.clone().sub(dir.clone().multiplyScalar(pole.dot(dir)));
+    if (p.lengthSq() < 1e-6) p.set(0, 0, 1);
+    p.normalize();
+    return { E: S.clone().add(dir.clone().multiplyScalar(a)).add(p.multiplyScalar(h)), H: S.clone().add(v) };
+}
+
+// 人物座標（腰が原点・+zが正面）での腕・脚のIK
+const rx = (v, a) => v.applyAxisAngle(AXIS_X, a);
+const headH = u => u.height * 0.13;
+const toW = (p, v) => p.localToWorld(v.clone().add(V(0, p.userData.legH, 0)));
+function shoulder(p, i, L) {
+    const u = p.userData;
+    return rx(V((i ? 1 : -1) * u.shoulderW, u.shoulderY - u.legH, 0), L);
+}
+// 曲がっている四肢だけ関節をつける（ほぼ真っ直ぐなら1本の棒のまま）
+function limb(a, dU, dL) {
+    const u = dU.clone().normalize(), l = dL.clone().normalize();
+    if (u.dot(l) > 0.985) { aim(a, u.add(l)); return; }
+    addJoint(a); aimLimb(a, dU, dL);
+}
+const hang = a => limb(a, V(0, -1, 0), V(0, -1, 0)); // 真下（上半身に沿わせる）
+function armTo(p, i, T, pole, L) {
+    const a = p.arms[i], S = shoulder(p, i, L);
+    const { E, H } = solveTwoBone(S, T, a.half, a.half, pole);
+    limb(a, rx(E.clone().sub(S), -L), rx(H.clone().sub(E), -L));
+}
+function legTo(p, i, T, pole) {
+    const l = p.legs[i], S = V((i ? 1 : -1) * p.userData.width * 0.25, 0, 0);
+    const { E, H } = solveTwoBone(S, T, l.half, l.half, pole);
+    limb(l, E.clone().sub(S), H.clone().sub(E));
+}
+function prep(p, L, hipY) {
+    applyLean(p, L);
+    p.position.y = hipY - p.userData.legH;
+}
+function kneel(p, one, L) {
+    const u = p.userData, h2 = u.legH / 2, t = u.width * 0.4;
+    let hipY, zk;
+    if (one) {
+        hipY = h2 + t / 2; zk = h2; prep(p, L, hipY);
+        const a = t / 2 / h2;
+        limb(p.legs[1], V(0, -a, Math.sqrt(1 - a * a)), V(0, -1, 0)); // 前脚（足裏が床）
+        limb(p.legs[0], V(0, -1, 0), V(0, 0, -1));                   // 後ろ脚（膝立ち）
+    } else {
+        zk = h2 * 0.7;
+        const d = Math.sqrt(h2 * h2 - zk * zk);
+        hipY = d + t / 2; prep(p, L, hipY);
+        p.legs.forEach(l => limb(l, V(0, -d, zk), V(0, 0, -1)));
+    }
+    return { hipY, zk };
+}
+
+// ----- Aの姿势 -----
+function surprised(A) { // 成功：ほんの少し腰を曲げて仰け反り、双手で口を押さえて驚く
+    const u = A.userData, hh = headH(u), L = -0.15;
+    prep(A, L, u.legH);
+    A.legs.forEach(hang);
+    [0, 1].forEach(i => {
+        const s = i ? 1 : -1;
+        armTo(A, i, rx(V(s * u.width * 0.1, u.height - hh * 1.0 - u.legH, hh * 0.8 + 0.02), L), V(s * 0.5, -1, 0.3), L);
+    });
+    return { front: 0.22 };
+}
+function bow(A) { // 失败：「ごめんなさい」の自然なお辞儀（手は太ももへ）
+    const u = A.userData, L = 0.6, hh = headH(u);
+    prep(A, L, u.legH);
+    A.legs.forEach(hang);
+    [0, 1].forEach(i => armTo(A, i, V((i ? 1 : -1) * u.width * 0.45, -u.legH * 0.28, u.width * 0.27), V(i ? 1 : -1, 0, -0.3), L));
+    return { front: rx(V(0, u.height - hh * 0.5 - u.legH, 0), L).z + hh * 0.8 + 0.03 };
+}
+
+// ----- Bの姿势（成功・失败とも同じ。失败は持っている物を落とすだけ） -----
+function bowHand(B, mode, ok) { // 手（左/右/双手）・手紙（双手＋手紙）：軽くお辞儀して腕を差し出す
+    const u = B.userData, L = 0.6, len = B.arms[1].half * 2, tips = [];
+    prep(B, L, u.legH);
+    B.legs.forEach(hang);
+    B.headParts.rotation.x = 0.3; // 下を向く
+    const out = [mode !== 'left', mode !== 'right']; // [右手, 左手]
+    B.arms.forEach((a, i) => {
+        if (!out[i]) { hang(a); return; } // 差し出していない腕は胴体に沿わせる
+        const inward = (mode === 'both' || mode === 'letter' || mode === 'choco') ? 0.15 * u.shoulderW / len : 0; // 双手は肩幅の約85%
+        const d = V(i ? -inward : inward, 0, 1).normalize();
+        limb(a, rx(d.clone(), -L), rx(d.clone(), -L)); // 肘を曲げず、まっすぐ差し出す
+        tips.push(shoulder(B, i, L).add(d.multiplyScalar(len)));
+    });
+    return {
+        front: shoulder(B, 1, L).z + len + 0.04,
+        extra: mode === 'letter' ? 0.05 : mode === 'choco' ? tips[0].distanceTo(tips[1]) * 0.44 : 0,
+        place() {
+            if (mode !== 'letter' && mode !== 'choco') return;
+            const w = tips[0].distanceTo(tips[1]), env = mode === 'choco' ? chocoBox(w) : letter(w), m = tips[0].clone().add(tips[1]).multiplyScalar(0.5);
+            env.position.copy(toW(B, m));
+            if (ok) env.rotation.y = B.rotation.y;
+            else { env.position.y = mode === 'choco' ? 0.019 : 0.005; env.rotation.y = B.rotation.y + 0.4; }
+            propGroup.add(env);
+        }
+    };
+}
+function kneelHold(B, kind, ok) { // 片膝をついてバラ／指輪を差し出す（失败なら床に落とす）
+    const u = B.userData, L = 0.1, h = u.height, sw = u.shoulderW, sy = u.shoulderY - u.legH;
+    kneel(B, true, L);
+    const P = (x, y, z) => rx(V(x, y, z), L);
+    let G;
+    if (kind === 'ring') {
+        G = P(sw * 0.25, sy - 0.04 * h, 0.3 * h);
+        armTo(B, 1, G, V(0.4, -1, -0.3), L);
+        armTo(B, 0, P(-sw - 0.02, sy - 0.34 * h, 0.05), V(-1, 0, -0.5), L); // 腕を曲げて体にくっつける
+    } else {
+        G = P(0, sy - 0.1 * h, 0.27 * h);
+        armTo(B, 1, G.clone().add(V(0.04, 0, 0)), V(0.5, -1, -0.2), L);
+        armTo(B, 0, G.clone().add(V(-0.04, 0.02, 0)), V(-0.5, -1, -0.2), L);
+    }
+    return {
+        front: G.z + (kind === 'ring' ? 0.08 : ok ? 0.2 : 0.4),
+        extra: kind === 'ring' ? 0.05 : ok ? 0.27 : 0.1, // 持ち物が前に出る分
+        place() {
+            const g = toW(B, G);
+            if (kind === 'ring') {
+                const box = ringBox(); box.position.copy(g);
+                if (ok) { box.position.y -= 0.01; box.rotation.y = B.rotation.y; }
+                else { box.position.y = 0; box.rotation.set(0, B.rotation.y + 0.5, 0.25); }
+                propGroup.add(box);
+            } else if (ok) {
+                const bq = bouquet(); bq.rotation.set(0.35, B.rotation.y, 0, 'YXZ');
+                bq.position.copy(g).addScaledVector(V(0, 1, 0).applyQuaternion(bq.quaternion), -0.1);
+                propGroup.add(bq);
+            } else {
+                const bq = bouquet(); bq.rotation.set(1.45, B.rotation.y + 0.25, 0, 'YXZ');
+                bq.position.copy(g); bq.position.y = 0.12; propGroup.add(bq);
+            }
+        }
+    };
+}
+
+function setupConfession(A, B, pose, ok, side) {
+    const pa = ok ? surprised(A) : bow(A);
+    const pb = (pose === 'hand' || pose === 'letter' || pose === 'choco') ? bowHand(B, (pose === 'letter' || pose === 'choco') ? pose : side, ok) : kneelHold(B, pose, ok);
+    A.rotation.y = Math.PI / 2; B.rotation.y = -Math.PI / 2;
+    A.position.x = 0; B.position.x = 0;
+    A.updateMatrixWorld(true); B.updateMatrixWorld(true);
+    const bound = p => { const bx = new THREE.Box3(); p.traverse(o => { if (o.isMesh) bx.expandByObject(o, true); }); return bx; };
+    // Aの一番前とBの一番前（持ち物込み）の間が常に一定の距離になるように配置
+    const gap = bound(A).max.x - bound(B).min.x + 0.3 + (pb.extra || 0);
+    A.position.x = -gap / 2; B.position.x = gap / 2;
+    return { gap, place: pb.place };
+}
+
+// ===== 小道具 =====
+function ringBox() {
+    const g = new THREE.Group();
+    const M = (geo, c, x, y, z) => { const o = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color: c, shininess: 60 })); o.position.set(x, y, z); return o; };
+    const bx = (a, b, c) => new THREE.BoxGeometry(a, b, c);
+    g.add(M(bx(0.075, 0.035, 0.06), 0x1f2f6b, 0, 0.0175, 0), M(bx(0.06, 0.006, 0.045), 0xf2efe6, 0, 0.036, 0));
+    const hinge = new THREE.Group(); hinge.position.set(0, 0.035, -0.03); hinge.rotation.x = -1.9;
+    hinge.add(M(bx(0.075, 0.014, 0.06), 0x1f2f6b, 0, 0, 0.03)); g.add(hinge);
+    g.add(M(new THREE.TorusGeometry(0.014, 0.004, 8, 20), 0xffd34d, 0, 0.054, 0), M(new THREE.SphereGeometry(0.007, 10, 10), 0xbfe9ff, 0, 0.072, 0));
+    return g;
+}
+function letter(w) {
+    const g = new THREE.Group();
+    const M = (geo, c, y) => { const o = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color: c })); o.position.y = y; return o; };
+    g.add(M(new THREE.BoxGeometry(w, 0.008, 0.1), 0xfffaf0, 0), M(new THREE.CylinderGeometry(0.014, 0.014, 0.004, 16), 0xe0405a, 0.006));
+    return g;
+}
+function chocoBox(w) { // ハート型のバレンタインチョコの箱（先端がA側を向く）
+    const g = new THREE.Group();
+    const sx = w / 2, sy = w * 0.44;
+    const heart = k => {
+        const s = new THREE.Shape(), X = v => v * sx * k, Y = v => v * sy * k;
+        s.moveTo(X(0), Y(-1));
+        s.bezierCurveTo(X(-0.2), Y(-0.75), X(-1), Y(-0.25), X(-1), Y(0.3));
+        s.bezierCurveTo(X(-1), Y(0.85), X(-0.3), Y(1), X(0), Y(0.6));
+        s.bezierCurveTo(X(0.3), Y(1), X(1), Y(0.85), X(1), Y(0.3));
+        s.bezierCurveTo(X(1), Y(-0.25), X(0.2), Y(-0.75), X(0), Y(-1));
+        return s;
+    };
+    const mat = c => new THREE.MeshPhongMaterial({ color: c, shininess: 50 });
+    const flat = (k, depth, c, y) => {
+        const m = new THREE.Mesh(new THREE.ExtrudeGeometry(heart(k), { depth, bevelEnabled: false, curveSegments: 20 }), mat(c));
+        m.rotation.x = -Math.PI / 2; m.position.y = y; return m;
+    };
+    g.add(flat(1, 0.035, 0xc8102e, -0.0175), flat(0.86, 0.006, 0xffc2d1, 0.0175));
+
+    // ---- リボン（帯＋蝶結び） ----
+    const gold = 0xffd34d, topY = 0.0235;
+    const bandW = sx * 0.16, bandT = 0.004;
+    // 縦帯（先端方向）と横帯
+    const bandZ = new THREE.Mesh(new THREE.BoxGeometry(bandW, bandT, sy * 1.7), mat(gold));
+    bandZ.position.set(0, topY + bandT / 2, sy * 0.05); g.add(bandZ);
+    const bandX = new THREE.Mesh(new THREE.BoxGeometry(sx * 1.6, bandT * 0.9, bandW), mat(gold));
+    bandX.position.set(0, topY + bandT * 0.45, -sy * 0.2); g.add(bandX);
+
+    // 蝶結び：結び目の位置
+    const bow = new THREE.Group();
+    bow.position.set(0, topY + bandT, -sy * 0.2);
+    g.add(bow);
+    // 輪っか（穴あきの楕円リボンを立てて外側へ打开）
+    const loopShape = () => {
+        const s = new THREE.Shape();
+        s.absellipse(0, 0, sx * 0.3, sx * 0.18, 0, Math.PI * 2, false, 0);
+        const hole = new THREE.Path();
+        hole.absellipse(0, 0, sx * 0.3 - bandW * 0.9, sx * 0.18 - bandW * 0.9, 0, Math.PI * 2, true, 0);
+        s.holes.push(hole);
+        return s;
+    };
+    [-1, 1].forEach(side => {
+        const pivot = new THREE.Group();
+        pivot.rotation.z = -side * 0.35; // 外側が持ち上がる
+        const loop = new THREE.Mesh(new THREE.ExtrudeGeometry(loopShape(), { depth: bandT * 1.4, bevelEnabled: false, curveSegments: 24 }), mat(gold));
+        loop.rotation.x = -Math.PI / 2;
+        loop.position.set(side * sx * 0.3, 0, 0);
+        pivot.add(loop);
+        // 輪の中の薄い面（リボンの布感）
+        const fill = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshPhongMaterial({ color: 0xffe58a, side: THREE.DoubleSide, transparent: true, opacity: 0.55 }));
+        fill.scale.set(sx * 0.3 - bandW * 0.9, sx * 0.18 - bandW * 0.9, 1);
+        fill.rotation.x = -Math.PI / 2;
+        fill.position.set(side * sx * 0.3, bandT * 0.7, 0);
+        pivot.add(fill);
+        bow.add(pivot);
+    });
+    // 垂れ下がるしっぽ（先がV字にカット）
+    [-1, 1].forEach(side => {
+        const tl = sx * 0.55, tw = bandW * 1.15;
+        const ts = new THREE.Shape();
+        ts.moveTo(-tw / 2, 0); ts.lineTo(tw / 2, 0); ts.lineTo(tw / 2, -tl); ts.lineTo(0, -tl + tw * 0.6); ts.lineTo(-tw / 2, -tl); ts.closePath();
+        const tail = new THREE.Mesh(new THREE.ExtrudeGeometry(ts, { depth: bandT, bevelEnabled: false }), mat(gold));
+        tail.rotation.x = -Math.PI / 2;
+        const tp = new THREE.Group();
+        tp.rotation.y = side * 0.45;
+        tp.position.set(0, -0.001, 0);
+        tp.add(tail);
+        bow.add(tp);
+    });
+    // 結び目
+    const knot = new THREE.Mesh(new THREE.SphereGeometry(bandW * 0.85, 14, 10), mat(0xf0b400));
+    knot.scale.set(1.1, 0.7, 1); knot.position.y = bandT * 1.2; bow.add(knot);
+    return g;
+}
+function bouquet() {
+    const g = new THREE.Group();
+    const M = (geo, c, x, y, z, side) => { const o = new THREE.Mesh(geo, new THREE.MeshPhongMaterial({ color: c, side: side || THREE.FrontSide })); o.position.set(x, y, z); return o; };
+    const paper = M(new THREE.ConeGeometry(0.13, 0.34, 20, 1, true), 0xfbe3ea, 0, 0.17, 0, THREE.DoubleSide);
+    paper.rotation.x = Math.PI; g.add(paper);
+    const rib = M(new THREE.TorusGeometry(0.04, 0.012, 8, 16), 0xd01030, 0, 0.1, 0);
+    rib.rotation.x = Math.PI / 2; g.add(rib);
+    [[0, .4, 0], [.07, .37, .02], [-.07, .37, .02], [.03, .36, .08], [-.03, .36, -.08], [.06, .35, -.06], [-.06, .35, .07]]
+        .forEach(p => g.add(M(new THREE.SphereGeometry(0.055, 12, 10), 0xc8102e, p[0], p[1], p[2])));
+    return g;
+}
+function getOpts() {
+    return {
+        pose: document.querySelector('input[name="confessPose"]:checked').value,
+        ok: document.querySelector('input[name="confessResult"]:checked').value === 'success',
+        side: document.querySelector('input[name="handSide"]:checked').value
+    };
+}
+
+function updateScene() {
+    const hA = parseFloat($('heightA').value) || 158;
+    const hB = parseFloat($('heightB').value) || 171.5;
+    const { pose, ok, side } = getOpts();
+    $('hand-side-box').style.display = pose === 'hand' ? '' : 'none';
+
+    if (personA) walkGroup.remove(personA);
+    if (personB) walkGroup.remove(personB);
+    personA = createMannequin($('colorA').value, hA, $('genderA').value, $('nameA').value, 'A');
+    personB = createMannequin($('colorB').value, hB, $('genderB').value, $('nameB').value, 'B');
+    walkGroup.add(personA, personB);
+
+    const r = setupConfession(personA, personB, pose, ok, side);
+    personA.userData.gaze = ok; personB.userData.gaze = pose === 'rose' || pose === 'ring';
+    const key = pose + ok + side;
+    if (key !== lastKey) { lastKey = key; camDist = Math.max(3, r.gap * 1.5 + 0.8); }
+
+    // 名字タグは上半身の傾きから切り離して頭の上に置く
+    [personA, personB].forEach(p => { if (p.pivot && p.nameTag.parent === p.pivot) { p.pivot.remove(p.nameTag); p.add(p.nameTag); } });
+    walkGroup.updateMatrixWorld(true);
+    const head = p => p.headParts.getWorldPosition(V());
+    [personA, personB].forEach(p => p.nameTag.position.copy(p.worldToLocal(head(p).add(V(0, 0.32, 0)))));
+
+    propGroup.clear();
+    if (r.place) r.place();
+
+    const nA = $('nameA').value || 'A', nB = $('nameB').value || 'B';
+    if (currentView !== '3rd') {
+        $('view-label').innerText = `${currentView === 'A' ? nA : nB}  的视角`;
+        if (currentView === 'A') { personA.headParts.visible = false; personA.nameTag.visible = false; }
+        if (currentView === 'B') { personB.headParts.visible = false; personB.nameTag.visible = false; }
+    }
+
+    $('info').innerHTML = `
+        <div class="info-row">
+            <span class="info-label">📏 身高差</span>
+            <span class="info-value">${Math.abs(hA - hB).toFixed(1)}<span class="unit">cm</span></span>
+        </div>
+    `;
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    // 見つめる向き（Bは指輪・バラのときAの顔、成功時のAはBの顔）
+    [[personA, personB], [personB, personA]].forEach(([p, q]) => { if (p.userData.gaze) p.headParts.lookAt(q.headParts.getWorldPosition(V())); });
+    const centerPos = V(0, Math.max(personA.userData.height, personB.userData.height) * 0.5, 0);
+    if (currentView === '3rd') {
+        // 球面座標でカメラを回す（真上・真下まで到達可能）
+        const px = Math.max(-PITCH_MAX, Math.min(PITCH_MAX, rotation.x));
+        const cp = Math.cos(px), sp = Math.sin(px), sy = Math.sin(rotation.y), cy = Math.cos(rotation.y);
+        camera.position.set(
+            centerPos.x + sy * cp * camDist,
+            centerPos.y + sp * camDist,
+            centerPos.z + cy * cp * camDist
+        );
+        // 真上・真下でも向きが破綻しないよう、upベクトルをピッチに合わせて傾ける
+        camera.up.set(-sy * sp, cp, -cy * sp);
+        camera.lookAt(centerPos);
+    } else {
+        const self = currentView === 'A' ? personA : personB;
+        const other = currentView === 'A' ? personB : personA;
+        camera.up.set(0, 1, 0);
+        self.headParts.getWorldPosition(camera.position);
+        camera.lookAt(other.headParts.getWorldPosition(V()));
+        camera.rotateY(rotation.y);
+        camera.rotateX(rotation.x);
+        camera.rotation.z = 0;
+    }
+    renderer.render(scene, camera);
+}
+
+function setupControls() {
+    const c = $('canvas-container');
+    const move = (dx, dy) => {
+        rotation.y -= dx * 0.005; rotation.x -= dy * 0.005;
+        if (currentView === '3rd') rotation.x = Math.max(-PITCH_MAX, Math.min(PITCH_MAX, rotation.x));
+    };
+    c.addEventListener('mousedown', () => isDragging = true);
+    window.addEventListener('mouseup', () => isDragging = false);
+    window.addEventListener('mousemove', e => { if (isDragging) move(e.movementX, e.movementY); });
+    c.addEventListener('wheel', e => {
+        if (currentView === '3rd') camDist = Math.max(0.5, Math.min(10, camDist + e.deltaY * 0.002));
+    }, { passive: true });
+    c.addEventListener('touchstart', e => {
+        if (e.touches.length === 1) { isDragging = true; previousTouch = e.touches[0]; initialPinchDist = null; }
+        else if (e.touches.length === 2 && currentView === '3rd') {
+            isDragging = false;
+            initialPinchDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        }
+    }, { passive: false });
+    window.addEventListener('touchend', () => { isDragging = false; initialPinchDist = null; });
+    window.addEventListener('touchmove', e => {
+        if (e.touches.length === 1 && isDragging && previousTouch) {
+            if (e.cancelable) e.preventDefault();
+            const t = e.touches[0];
+            move(t.clientX - previousTouch.clientX, t.clientY - previousTouch.clientY);
+            previousTouch = t;
+        } else if (e.touches.length === 2 && initialPinchDist !== null && currentView === '3rd') {
+            if (e.cancelable) e.preventDefault();
+            const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            camDist = Math.max(0.5, Math.min(10, camDist - (d - initialPinchDist) * 0.005));
+            initialPinchDist = d;
+        }
+    }, { passive: false });
+}
+
+function switchView() {
+    const order = ['3rd', 'A', 'B'];
+    currentView = order[(order.indexOf(currentView) + 1) % 3];
+    const nA = $('nameA').value || 'A', nB = $('nameB').value || 'B';
+    $('view-label').innerText = currentView === '3rd' ? '第三人称视角' : `${currentView === 'A' ? nA : nB}  的视角`;
+    $('crosshair').style.display = currentView === '3rd' ? 'none' : 'block';
+    personA.headParts.visible = true; personA.nameTag.visible = true;
+    personB.headParts.visible = true; personB.nameTag.visible = true;
+    if (currentView === 'A') { personA.headParts.visible = false; personA.nameTag.visible = false; }
+    else if (currentView === 'B') { personB.headParts.visible = false; personB.nameTag.visible = false; }
+    if (currentView === '3rd') { rotation.x = DEFAULT_ROT_3RD.x; rotation.y = DEFAULT_ROT_3RD.y; }
+    else { rotation.x = 0; rotation.y = 0; }
+}
+
+
+function shareToX() {
+    const nA = $('nameA').value || 'A', nB = $('nameB').value || 'B';
+    const hA = parseFloat($('heightA').value) || 158.0, hB = parseFloat($('heightB').value) || 171.5;
+    const { pose, ok } = getOpts();
+    const how = { hand: '伸出手', letter: '递出信', choco: '递出情人节巧克力', rose: '递出玫瑰', ring: '递出戒指' }[pose];
+    const text = `${nB}(${hB.toFixed(1)}cm)用${how}向${nA}(${hA.toFixed(1)}cm)求婚！😍结果是…${ok ? '成功！🤩' : '失败😭'}\n#求婚模拟器\n`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.href)}`, '_blank');
+}
+
+init();
+</script>
+</body>
+</html>

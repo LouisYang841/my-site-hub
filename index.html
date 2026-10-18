@@ -1,19 +1,19 @@
 <!DOCTYPE html>
-<html lang="ja">
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>体格差ツール・シミュレーター一覧</title>
+    <title>体格差模拟器一览（中文版）</title>
     <link rel="icon" type="image/png" href="favicon.png">
     <link rel="apple-touch-icon" href="favicon.png">
-    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --primary-color: #ffcc33; 
-            --secondary-color: #ffb347; 
-            --text-color: #5c4b3a; 
+            --primary-color: #ffcc33;
+            --secondary-color: #ffb347;
+            --text-color: #5c4b3a;
             --sub-text-color: #8c7b6a;
-            --bg-color: #fdf6e3; 
+            --bg-color: #fdf6e3;
             --card-bg: #ffffff;
             --accent-glow: rgba(255, 204, 51, 0.4);
             --new-color: #ff6b6b;
@@ -24,11 +24,11 @@
         }
 
         body {
-            font-family: 'Noto Sans JP', 'Helvetica Neue', Arial, sans-serif;
+            font-family: 'Noto Sans SC', 'Helvetica Neue', Arial, sans-serif;
             background-color: var(--bg-color);
             color: var(--text-color);
             margin: 0;
-            padding: 12px 10px 80px 10px; /* 一番下のカード下にしっかり余裕を持たせる */
+            padding: 12px 10px 80px 10px;
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -36,7 +36,6 @@
             -webkit-text-size-adjust: 100%;
         }
 
-        /* --- タイトル部分 --- */
         header {
             text-align: center;
             margin-bottom: 8px;
@@ -44,16 +43,16 @@
         }
 
         h1 {
-            font-family: 'Noto Sans JP', sans-serif;
+            font-family: 'Noto Sans SC', sans-serif;
             font-weight: 700;
-            font-size: clamp(1rem, 4.5vw, 1.4rem); 
+            font-size: clamp(1rem, 4.5vw, 1.4rem);
             margin: 0 auto;
             position: relative;
             display: inline-block;
             padding: 0 4px;
             color: var(--text-color);
             z-index: 1;
-            white-space: nowrap; 
+            white-space: nowrap;
             letter-spacing: 0.01em;
         }
 
@@ -69,7 +68,6 @@
             z-index: -1;
         }
 
-        /* --- 常に表示される超コンパクト案内エリア --- */
         .info-container {
             width: 100%;
             max-width: 600px;
@@ -117,11 +115,11 @@
             font-weight: 700;
             transition: opacity 0.2s;
         }
+
         .sns-link:hover {
             opacity: 0.7;
         }
 
-        /* --- 独立させた❓風の隠しボタン --- */
         .extra-link-btn {
             display: inline-block;
             background: rgba(255, 204, 51, 0.15);
@@ -134,13 +132,13 @@
             border-radius: 8px;
             transition: all 0.2s ease;
         }
+
         .extra-link-btn:hover {
             background: rgba(255, 204, 51, 0.3);
             color: var(--text-color);
             border-color: var(--primary-color);
         }
 
-        /* --- 2列固定カードコンテナ --- */
         .container {
             display: grid;
             grid-template-columns: repeat(2, 1fr);
@@ -149,7 +147,6 @@
             width: 100%;
         }
 
-        /* --- かわいくリフレッシュしたカードデザイン --- */
         .card {
             background: linear-gradient(145deg, #ffffff, #fffdf8);
             border-radius: 14px;
@@ -169,7 +166,7 @@
             min-height: 52px;
         }
 
-        .card:not(.coming-soon):hover {
+        .card:hover {
             transform: translateY(-3px) scale(1.02);
             box-shadow: 0 6px 14px var(--accent-glow);
             border-color: var(--primary-color);
@@ -192,7 +189,6 @@
             color: var(--text-color);
         }
 
-        /* --- 下の方にもあることを知らせるフローティング誘導バー（より目立たせる＆一番下で自動非表示） --- */
         .scroll-hint-banner {
             position: fixed;
             bottom: 0;
@@ -214,7 +210,6 @@
 
         .scroll-hint-content {
             display: inline-block;
-            background: linear-235deg, #fffdf8, #fff3cd); /* ※微修正：linear-gradientのタイポ修正等あればお好みで */
             background: linear-gradient(135deg, #fffdf8, #fff3cd);
             border: 2px solid var(--primary-color);
             color: var(--text-color);
@@ -245,181 +240,179 @@
 <body>
 
 <header>
-    <h1>体格差ツール・シミュレーター一覧</h1>
+    <h1>体格差模拟器一览</h1>
 </header>
 
 <div class="info-container">
     <div class="rule-text">
-        スクショ投稿や加工、トレース等はご自由にお楽しみください。<br>
-        <span class="warning">※営利目的や商用利用はご遠慮ください。</span>
+        截图投稿、加工、描图等请随意享用。<br>
+        <span class="warning">※请勿用于营利或商业用途。</span>
     </div>
-    
+
     <div class="notice-text">
-        新しいツールも準備ができ次第、順次追加予定です。<br>
-        ご意見・ご感想などはマシュマロやDMまでお寄せください。
+        本站是 <a href="https://qwertyaz111.github.io/my-site-hub/" target="_blank" rel="noopener noreferrer">qwertyaz111 的体格差模拟器</a> 的非官方中文汉化版，版权归原作者所有。<br>
+        意见反馈欢迎通过原作者的 X（旧 Twitter）或棉花糖发送。
     </div>
 
     <div class="link-row">
-        <a href="https://x.com/qwertyaz111" class="sns-link" target="_blank" rel="noopener noreferrer">𝕏 (旧Twitter)はこちら</a>
-        <a href="https://qwertyaz111.itch.io/r18-my-site-hub" class="extra-link-btn" target="_blank" rel="noopener noreferrer">❓ 秘密の体格差シミュレーターはこちらから</a>
+        <a href="https://x.com/qwertyaz111" class="sns-link" target="_blank" rel="noopener noreferrer">原作者 𝕏 (旧Twitter)</a>
+        <a href="https://qwertyaz111.itch.io/r18-my-site-hub" class="extra-link-btn" target="_blank" rel="noopener noreferrer">❓ 秘密的体格差模拟器（R18）在这边</a>
     </div>
 </div>
 
 <div class="container">
-    <a href="https://qwertyaz111.github.io/hand-size-comparison/" class="card">
+    <a href="./hand-size-comparison/" class="card">
         <div class="icon">✋</div>
-        <div class="title">手の大きさ比較ツール</div>
+        <div class="title">手的大小比较工具</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/foot-size-comparison/" class="card">
+    <a href="./foot-size-comparison/" class="card">
         <div class="icon">🦶</div>
-        <div class="title">足の大きさ比較ツール</div>
+        <div class="title">脚的大小比较工具</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/eye-level-simulator/" class="card">
+    <a href="./eye-level-simulator/" class="card">
         <div class="icon">👀</div>
-        <div class="title">目線差シミュレーター</div>
+        <div class="title">视线差模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/shared-shirt-simulator/" class="card">
+    <a href="./shared-shirt-simulator/" class="card">
         <div class="icon">👔</div>
-        <div class="title">彼シャツシミュレーター</div>
+        <div class="title">男友衬衫模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/stroll-date-simulator/" class="card">
+    <a href="./stroll-date-simulator/" class="card">
         <div class="icon">👣</div>
-        <div class="title">おさんぽシミュレーター</div>
+        <div class="title">散步模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/kabedon-floor-simulator/" class="card">
+    <a href="./kabedon-floor-simulator/" class="card">
         <div class="icon">💓</div>
-        <div class="title">床ドンシミュレーター</div>
+        <div class="title">地板咚模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/3d-height-comparison/" class="card">
+    <a href="./3d-height-comparison/" class="card">
         <div class="icon">📏</div>
-        <div class="title">3D身長比較ツール</div>
+        <div class="title">3D身高比较工具</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/hug-simulator/" class="card">
+    <a href="./hug-simulator/" class="card">
         <div class="icon">🫂</div>
-        <div class="title">ハグシミュレーター</div>
+        <div class="title">拥抱模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/cuddling-simulator/" class="card">
+    <a href="./cuddling-simulator/" class="card">
         <div class="icon">💤</div>
-        <div class="title">添い寝シミュレーター</div>
+        <div class="title">同眠模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/couple-pic-simulator/" class="card">
+    <a href="./couple-pic-simulator/" class="card">
         <div class="icon">🤳</div>
-        <div class="title">ツーショットシミュレーター</div>
+        <div class="title">合照模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/kiss-simulator/" class="card">
+    <a href="./kiss-simulator/" class="card">
         <div class="icon">💋</div>
-        <div class="title">キスシミュレーター</div>
+        <div class="title">亲吻模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/aiaigasa-simulator/" class="card">
+    <a href="./aiaigasa-simulator/" class="card">
         <div class="icon">☔</div>
-        <div class="title">相合傘シミュレーター</div>
+        <div class="title">共伞模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/purikura-simulator/" class="card">
+    <a href="./purikura-simulator/" class="card">
         <div class="icon">📸</div>
-        <div class="title">プリクラシミュレーター</div>
+        <div class="title">大头贴模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/sitting-simulator/" class="card">
+    <a href="./sitting-simulator/" class="card">
         <div class="icon">🪑</div>
-        <div class="title">お座りシミュレーター</div>
+        <div class="title">落座模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/kabedon-simulator/" class="card">
+    <a href="./kabedon-simulator/" class="card">
         <div class="icon">🧱</div>
-        <div class="title">壁ドンシミュレーター</div>
+        <div class="title">壁咚模拟器</div>
     </a>
-    
-    <a href="https://qwertyaz111.github.io/stay-at-home-date-simulator/" class="card">
+
+    <a href="./stay-at-home-date-simulator/" class="card">
         <div class="icon">🏠</div>
-        <div class="title">お家デートシミュレーター</div>
+        <div class="title">居家约会模拟器</div>
     </a>
-    
-    <a href="https://qwertyaz111.github.io/lap-pillow-simulator/" class="card">
+
+    <a href="./lap-pillow-simulator/" class="card">
         <div class="icon">🦵</div>
-        <div class="title">膝枕シミュレーター</div>
+        <div class="title">膝枕模拟器</div>
     </a>
-    
-    <a href="https://qwertyaz111.github.io/sharing-a-scarf-simulator/" class="card">
+
+    <a href="./sharing-a-scarf-simulator/" class="card">
         <div class="icon">🧣</div>
-        <div class="title">マフラーシミュレーター</div>
+        <div class="title">围巾模拟器</div>
     </a>
-    
-    <a href="https://qwertyaz111.github.io/piggyback-simulator/" class="card">
+
+    <a href="./piggyback-simulator/" class="card">
         <div class="icon">🎒</div>
-        <div class="title">おんぶシミュレーター</div>
+        <div class="title">背背模拟器</div>
     </a>
-    
-    <a href="https://qwertyaz111.github.io/put-to-bed-simulator/" class="card">
+
+    <a href="./put-to-bed-simulator/" class="card">
         <div class="icon">👶</div>
-        <div class="title">寝かしつけシミュレーター</div>
-    </a>    
+        <div class="title">哄睡模拟器</div>
+    </a>
 
-    <a href="https://qwertyaz111.github.io/bookshelf-simulator/" class="card">
+    <a href="./bookshelf-simulator/" class="card">
         <div class="icon">📚</div>
-        <div class="title">本棚シミュレーター</div>
+        <div class="title">书架模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/princess-carry-simulator/" class="card">
+    <a href="./princess-carry-simulator/" class="card">
         <div class="icon">👸</div>
-        <div class="title">お姫様抱っこシミュレーター</div>
+        <div class="title">公主抱模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/leg-hold-simulator/" class="card">
+    <a href="./leg-hold-simulator/" class="card">
         <div class="icon">🤲</div>
-        <div class="title">膝抱っこシミュレーター</div>
+        <div class="title">膝抱模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/hakozume-simulator/" class="card">
+    <a href="./hakozume-simulator/" class="card">
         <div class="icon">📦</div>
-        <div class="title">箱詰めシミュレーター</div>
+        <div class="title">装箱模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/straddling-simulator/" class="card">
+    <a href="./straddling-simulator/" class="card">
         <div class="icon">🏇</div>
-        <div class="title">跨りシミュレーター</div>
+        <div class="title">跨坐模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/beddon-simulator/" class="card">
+    <a href="./beddon-simulator/" class="card">
         <div class="icon">🛏</div>
-        <div class="title">ベッドドンシミュレーター</div>
+        <div class="title">床咚模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/propose-simulator/" class="card">
+    <a href="./propose-simulator/" class="card">
         <div class="icon">💍</div>
-        <div class="title">プロポーズシミュレーター</div>
+        <div class="title">求婚模拟器</div>
     </a>
 
-    <a href="https://qwertyaz111.github.io/piggyback-ride-simulator/" class="card">
+    <a href="./piggyback-ride-simulator/" class="card">
         <div class="icon">🦒</div>
-        <div class="title">肩車シミュレーター</div>
+        <div class="title">骑肩模拟器</div>
     </a>
 </div>
 
-<!-- 下の方にもあることを知らせる目印バナー（一番下まで来たら自動で消える） -->
 <div id="scrollHintBanner" class="scroll-hint-banner">
     <div class="scroll-hint-content">
-        👇 下にもまだシミュレーターがあります！
+        👇 下面还有更多模拟器！
     </div>
 </div>
 
 <script>
-    // 一番下までスクロールしたときにバナーを隠す処理
     window.addEventListener('scroll', function() {
         const banner = document.getElementById('scrollHintBanner');
         const scrollPosition = window.innerHeight + window.scrollY;
-        const threshold = document.documentElement.scrollHeight - 50; // 下から50px手前
+        const threshold = document.documentElement.scrollHeight - 50;
 
         if (scrollPosition >= threshold) {
             banner.classList.add('hidden');

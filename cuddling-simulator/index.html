@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>💤同眠模拟器</title>
+    <style>
+        :root { --panel-width: 300px; }
+        body { margin: 0; font-family: 'Helvetica Neue', Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; background: #ffffff; overflow: hidden; }
+        
+        /* #ui-panel の更新 */
+        #ui-panel {
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            width: var(--panel-width);
+            max-height: calc(100vh - 20px);
+            max-height: calc(100dvh - 20px); /* 可変ビューポート対応 */
+            background: rgba(255, 255, 255, 0.95); 
+            padding: 15px; 
+            padding-bottom: 40px; 
+            border-radius: 15px; 
+            z-index: 100; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch; 
+            touch-action: pan-y; 
+            border: 1px solid rgba(255,255,255,0.3); 
+            backdrop-filter: blur(10px); 
+            -webkit-backdrop-filter: blur(10px);
+            box-sizing: border-box;
+            transition: all 0.2s ease-out;
+        }
+        #canvas-container { width: 100vw; height: 100vh; cursor: move; touch-action: none; }
+
+        @media screen and (max-width: 480px) { 
+            :root { --panel-width: calc(100vw - 20px); }
+            #ui-panel { left: 10px; right: 10px; }
+        }
+
+        /* 折りたたんだ（閉じた）時の専用スタイル */
+        #ui-panel.collapsed {
+            max-height: none !important;
+            padding: 10px 15px !important;
+            overflow: hidden !important;
+            width: auto;
+            max-width: calc(100vw - 20px);
+        }
+
+        @media screen and (max-width: 480px) { 
+            /* スマホ表示で閉じた場合、右端の固定を解除してタイトルサイズへ収める */
+            #ui-panel.collapsed { right: auto; }
+        }
+        
+        /* ヘッダーをパネル上部に固定（スクロールしても上に張り付く） */
+        .panel-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            cursor: pointer; 
+            user-select: none; 
+            gap: 10px; 
+            position: sticky; /* パネル内スクロール時も上に固定 */
+            top: -15px;       /* padding 分を相殺 */
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 0;
+            margin: -15px -15px 10px -15px;
+            padding-left: 15px;
+            padding-right: 15px;
+            z-index: 10;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+
+        #toggle-text { 
+            font-size: 12px; 
+            font-weight: bold; 
+            color: #666; 
+            background: #eee; 
+            padding: 4px 10px; 
+            border-radius: 10px; 
+            white-space: nowrap; /* テキストの意図しない改行を防止 */
+        }
+        .collapsed #ui-content { display: none; }
+
+        .app-title { 
+            font-size: 1.2rem; 
+            margin: 0; 
+            color: #333; 
+            font-weight: bold; 
+            white-space: nowrap; /* タイトルの改行を防止 */
+        }
+        .app-description { font-size: 11px; color: #777; margin-top: 8px; margin-bottom: 5px; line-height: 1.5; text-align: center; }
+        
+        .input-group { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; margin-bottom: 10px; }
+        .group-a { background: #fff5f0; border: 1px solid #ffe0d0; }
+        .group-b { background: #f0f7ff; border: 1px solid #d0e7ff; }
+        .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+        .section-header strong { font-size: 15px; color: #444; }
+        .input-row { display: flex; gap: 8px; align-items: flex-end; width: 100%; }
+        .input-item { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .hint { font-size: 10px; color: #999; margin-bottom: 2px; font-weight: bold; }
+        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; background: white; color: #333; width: 100%; box-sizing: border-box; }
+        
+        .color-picker { width: 100%; height: 38px; border: 2px solid #999; border-radius: 4px; cursor: pointer; padding: 0; background: none; appearance: none; -webkit-appearance: none; }
+        
+        .anim-controls { display: flex; gap: 8px; margin-bottom: 8px; padding: 0 5px; }
+        .btn-anim {
+            flex: 1; padding: 10px; border-radius: 8px; border: 1px solid #ddd;
+            background: #fff; cursor: pointer; font-size: 12px; font-weight: bold; transition: 0.2s;
+        }
+        .btn-anim.active { background: #333; color: #fff; border-color: #333; }
+
+        .side-selector {
+            background: #f0f0f0; padding: 4px; border-radius: 10px;
+            display: flex; margin: 0 5px 15px 5px; transition: opacity 0.3s;
+        }
+        .side-selector button {
+            flex: 1; border: none; background: none; padding: 8px;
+            font-size: 11px; font-weight: bold; cursor: pointer; border-radius: 7px; color: #666;
+        }
+        .side-selector button.active {
+            background: white; color: #333; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .switch-btn { width: 100%; padding: 12px; background: #333; color: white; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; -webkit-tap-highlight-color: transparent; margin-bottom: 10px; }
+        .switch-btn:active { background: #000; transform: scale(0.98); }
+        .swap-btn { margin-bottom: 5px; }
+
+        .share-btn { 
+            width: 100%; padding: 12px; background: #000; color: white; border: none; border-radius: 10px; 
+            font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; 
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            text-decoration: none; margin-top: 10px;
+        }
+
+        .other-tools-link {
+            margin-top: 20px; padding: 10px; background: #f9f9f9;
+            border-radius: 10px; text-align: center;
+        }
+        .other-tools-link a {
+            text-decoration: none; color: #333; font-size: 12px; font-weight: bold;
+            border: 2px solid #333; padding: 8px 15px; border-radius: 30px;
+            display: inline-block; transition: 0.3s; margin: 4px;
+        }
+        .other-tools-link a:hover { background: #333; color: #fff; }
+
+        .usage-notes {
+            font-size: 10px; color: #999; margin-top: 12px;
+            line-height: 1.5; text-align: center;
+        }
+
+        .info-box { background: #ffffff; padding: 15px; border-radius: 12px; margin-top: 12px; border: 1px solid #eee; }
+        .info-row { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; }
+        .info-label { color: #555; font-size: 12px; font-weight: bold; }
+        .info-value { font-weight: 800; font-size: 18px; color: #2c3e50; }
+        
+        #view-label { 
+            position: absolute; 
+            bottom: 20px; 
+            right: 15px; 
+            background: rgba(0,0,0,0.7); 
+            color: white; 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            z-index: 90; 
+            pointer-events: none; 
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-panel">
+    <div class="panel-header" onclick="togglePanel()">
+        <h1 class="app-title">💤同眠模拟器</h1>
+        <span id="toggle-text">关闭</span>
+    </div>
+
+    <div id="ui-content">
+        <p class="app-description">根据性别和身高模拟同眠的氛围。</p>
+        
+        <div class="input-group group-a">
+            <div class="section-header"><strong>A</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameA" placeholder="名字A" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.6;"><span class="hint">性别</span><select id="genderA" onchange="updateScene()"><option value="male">男</option><option value="female" selected>女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightA" value="158.0" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.35;"><span class="hint">色</span><input type="color" id="colorA" class="color-picker" value="#ffcc99" oninput="updateScene()"></div>
+            </div>
+        </div>
+
+        <div class="input-group group-b">
+            <div class="section-header"><strong>B</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameB" placeholder="名字B" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.6;"><span class="hint">性别</span><select id="genderB" onchange="updateScene()"><option value="male" selected>男</option><option value="female">女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightB" value="171.5" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.35;"><span class="hint">色</span><input type="color" id="colorB" class="color-picker" value="#ffad60" oninput="updateScene()"></div>
+            </div>
+        </div>
+
+        <div class="anim-controls">
+            <button id="btn-side" class="btn-anim active" onclick="setHugMode('side')">并排躺</button>
+            <button id="btn-front" class="btn-anim" onclick="setHugMode('front')">正面抱</button>
+            <button id="btn-back" class="btn-anim" onclick="setHugMode('back')">背后抱</button>
+        </div>
+
+        <div class="side-selector" id="side-selector" style="opacity: 0.3; pointer-events: none;">
+            <button id="side-left" class="active" onclick="setBackHugSide('left')">朝左侧睡</button>
+            <button id="side-right" onclick="setBackHugSide('right')">朝右侧睡</button>
+        </div>
+
+        <div style="padding: 0 5px;">
+            <button class="switch-btn swap-btn" onclick="swapAB()">⇄ 交换A与B</button>
+            <button class="switch-btn" onclick="switchView()">🔄 切换视角</button>
+        </div>
+        
+        <div id="info-container">
+            <div class="info-box" id="info"></div>
+            <button class="share-btn" onclick="shareToX()">分享结果</button>
+        </div>
+
+        <div class="other-tools-link">
+            <p style="font-size: 10px; color: #888; margin-bottom: 8px;">也来看看这些❣🤩</p>
+            <a href="../">体格差模拟器一览</a>
+        </div>
+
+        <div class="usage-notes">
+            截图投稿、加工、描图等请随意享用。<br>
+            ※请勿用于营利或商业用途。
+        </div>
+    </div>
+</div>
+
+<div id="view-label"></div>
+<div id="canvas-container"></div>
+
+<script type="module">
+import * as THREE from 'https://unpkg.com/three@0.158.0/build/three.module.js';
+
+let scene, camera, renderer, clock;
+let personA, personB, walkGroup;
+let currentView = '3rd';
+let hugMode = 'side';
+let backHugSide = 'left';
+let rotation = { x: 0.3, y: 0.8 }, camDist = 2.5, isDragging = false, previousTouch = null, initialPinchDist = null;
+
+function init() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xffffff);
+
+    camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.01, 1000);
+    camera.rotation.order = 'YXZ';
+    
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 2.5));
+    scene.add(new THREE.GridHelper(200, 400, 0xeeeeee, 0xf5f5f5));
+
+    walkGroup = new THREE.Group();
+    scene.add(walkGroup);
+
+    clock = new THREE.Clock();
+    setupControls();
+    window.addEventListener('resize', onWindowResize);
+    
+    window.updateScene = updateScene;
+    window.switchView = switchView;
+    window.swapAB = swapAB;
+
+    window.setHugMode = (m) => {
+        hugMode = m; 
+        document.getElementById('btn-side').classList.toggle('active', m === 'side');
+        document.getElementById('btn-front').classList.toggle('active', m === 'front');
+        document.getElementById('btn-back').classList.toggle('active', m === 'back');
+        
+        const selector = document.getElementById('side-selector');
+        selector.style.opacity = (m === 'back' ? '1' : '0.3');
+        selector.style.pointerEvents = (m === 'back' ? 'auto' : 'none');
+        
+        updateScene(); 
+    };
+
+    window.setBackHugSide = (s) => {
+        backHugSide = s;
+        document.getElementById('side-left').classList.toggle('active', s === 'left');
+        document.getElementById('side-right').classList.toggle('active', s === 'right');
+        updateScene();
+    };
+
+    window.shareToX = shareToX;
+    window.togglePanel = () => {
+        const panel = document.getElementById('ui-panel');
+        const text = document.getElementById('toggle-text');
+        panel.classList.toggle('collapsed');
+        text.innerText = panel.classList.contains('collapsed') ? '打开' : '关闭';
+    };
+
+    // 入力フォームからフォーカスが外れた際に、パネルのスクロール位置を上部へリセットする
+    document.querySelectorAll('#ui-panel input, #ui-panel select').forEach(element => {
+        element.addEventListener('blur', () => {
+            const panel = document.getElementById('ui-panel');
+            if (panel) {
+                panel.scrollTop = 0;
+            }
+            // iOS Safari等の画面全体のズレ防止策
+            window.scrollTo(0, 0);
+        });
+    });
+
+    updateScene();
+    animate();
+}
+
+function onWindowResize() {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function swapAB() {
+    ['name', 'gender', 'height', 'color'].forEach(field => {
+        const elA = document.getElementById(field + 'A');
+        const elB = document.getElementById(field + 'B');
+        const tmp = elA.value;
+        elA.value = elB.value;
+        elB.value = tmp;
+    });
+    updateScene();
+}
+
+function createMannequin(color, heightCm, gender, name, role) {
+    const group = new THREE.Group();
+    const h = heightCm * 0.01;
+    const bodyMat = new THREE.MeshPhongMaterial({ color: color, transparent: true, opacity: 0.85 });
+    const eyeMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+
+    const headH = h * 0.13;
+    const neckH = h * 0.05;
+    const torsoH = h * 0.37;
+    const legH = h * 0.45;
+    const eyeY = h * 0.94;
+    const torsoW = (gender === 'male' ? 0.26 : 0.21) * (h/1.7);
+    const torsoDepth = torsoW * 0.5;
+
+    const headBox = new THREE.Group();
+    headBox.position.y = eyeY;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.8, 16, 16), bodyMat);
+    head.position.y = (h - headH * 0.5) - eyeY;
+    headBox.add(head);
+
+    const eyesContainer = new THREE.Group();
+    eyesContainer.rotation.z = -Math.PI / 2; 
+    headBox.add(eyesContainer);
+
+    [-1, 1].forEach(side => {
+        const eye = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.12, 12, 12), eyeMat);
+        eye.position.set(side * (headH * 0.28), 0, (headH * 0.7));
+        eyesContainer.add(eye);
+    });
+    group.add(headBox);
+    group.headParts = headBox;
+
+    const neck = new THREE.Mesh(new THREE.CylinderGeometry(headH*0.3, headH*0.3, neckH, 16), bodyMat);
+    neck.position.y = h - headH - (neckH * 0.5);
+    group.add(neck);
+
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoW, torsoH, torsoDepth), bodyMat);
+    torso.position.y = legH + (torsoH * 0.5);
+    group.add(torso);
+    group.torsoMesh = torso;
+
+    group.arms = [];
+    const armThickness = torsoW * 0.3;
+    const shoulderW = (torsoW * 0.5) + (armThickness * 0.5);
+    const shoulderY = legH + torsoH - (torsoW * 0.15); 
+    const armLen = h * 0.38;
+
+    [-1, 1].forEach(side => {
+        const anchor = new THREE.Group();
+        anchor.position.set(side * shoulderW, shoulderY, 0);
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry(armThickness, armLen, torsoW*0.3), bodyMat);
+        mesh.position.y = -armLen * 0.5;
+        anchor.add(mesh);
+        group.add(anchor);
+        group.arms.push(anchor);
+    });
+
+    group.legs = [];
+    [-1, 1].forEach(side => {
+        const anchor = new THREE.Group();
+        anchor.position.set( side * (torsoW * 0.25), legH, 0 );
+        const mesh = new THREE.Mesh(new THREE.BoxGeometry( torsoW*0.4, legH, torsoW*0.4 ), bodyMat);
+        mesh.position.y = -legH * 0.5;
+        anchor.add(mesh);
+        group.add(anchor);
+        group.legs.push(anchor);
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 512; canvas.height = 128;
+    const ctx = canvas.getContext('2d');
+    ctx.font = "bold 45px sans-serif"; ctx.fillStyle = "#333"; ctx.textAlign = "center";
+    const displayName = name || (role === 'B' ? 'B' : 'A');
+    ctx.fillText(`${displayName} (${heightCm.toFixed(1)}cm)`, 256, 64);
+    const spriteMaterial = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) });
+    const sprite = new THREE.Sprite(spriteMaterial);
+    sprite.scale.set(1.5, 0.38, 1);
+    sprite.position.y = h + 0.3;
+    group.add(sprite);
+    group.nameTag = sprite;
+
+    group.userData = { height: h, armLen: armLen, eyeY: eyeY, role: role, depth: torsoDepth, width: torsoW, armThick: armThickness, legH: legH, torsoH: torsoH, shoulderW: shoulderW, shoulderY: shoulderY };
+    return group;
+}
+
+function updateScene() {
+    const hA = parseFloat(document.getElementById('heightA').value)||158;
+    const hB = parseFloat(document.getElementById('heightB').value)||171.5;
+    const gA = document.getElementById('genderA').value;
+    const gB = document.getElementById('genderB').value;
+    
+    if(personA) walkGroup.remove(personA);
+    if(personB) walkGroup.remove(personB);
+    
+    personA = createMannequin(document.getElementById('colorA').value, hA, gA, document.getElementById('nameA').value, 'A');
+    personB = createMannequin(document.getElementById('colorB').value, hB, gB, document.getElementById('nameB').value, 'B');
+    
+    const deg10 = 10 * (Math.PI / 180);
+
+    if (hugMode === 'side') {
+        const spreadA = personA.userData.shoulderW + (personA.userData.armLen * Math.sin(deg10));
+        const spreadB = personB.userData.shoulderW + (personB.userData.armLen * Math.sin(deg10));
+        const dist = spreadA + spreadB + 0.02;
+
+        personA.position.z = -dist / 2; personA.rotation.y = -Math.PI / 2;
+        personB.position.z = dist / 2; personB.rotation.y = -Math.PI / 2;
+        [personA, personB].forEach(p => {
+            p.arms.forEach((arm, i) => { arm.rotation.z = (i === 0 ? -1 : 1) * deg10; arm.rotation.x = 0; });
+            p.legs.forEach((leg, i) => { leg.rotation.z = (i === 0 ? -1 : 1) * deg10; });
+        });
+    } else if (hugMode === 'front') {
+        const dist = 0.34;
+        personA.position.z = -dist / 2; personA.rotation.y = 0;
+        personB.position.z = dist / 2; personB.rotation.y = Math.PI;
+    } else {
+        const dist = 0.28;
+        personA.position.z = dist / 2; personA.rotation.y = 0;
+        personB.position.z = -dist / 2; personB.rotation.y = 0;
+    }
+
+    if (hugMode !== 'side') {
+        [personA, personB].forEach((p, idx) => {
+            const other = idx === 0 ? personB : personA;
+            const targetDist = Math.abs(personA.position.z - personB.position.z);
+            if (hugMode === 'back' && p.userData.role === 'A') {
+                p.arms.forEach(arm => { arm.rotation.x = 0; arm.rotation.z = 0; });
+                return;
+            }
+            const dx = (other.userData.width / 2 + p.userData.armThick * 0.5) - p.userData.shoulderW;
+            const dy = p.userData.shoulderY - (other.userData.legH + other.userData.torsoH * 0.6);
+            p.arms.forEach((arm, i) => {
+                arm.rotation.z = (i === 0 ? -1 : 1) * Math.atan2(dx, targetDist);
+                arm.rotation.x = - (Math.PI / 2) + Math.atan2(dy, targetDist);
+            });
+        });
+    }
+
+    walkGroup.add(personA, personB);
+
+    if (hugMode === 'back' && backHugSide === 'right') {
+        walkGroup.rotation.z = -Math.PI / 2;
+    } else {
+        walkGroup.rotation.z = Math.PI / 2;
+    }
+
+    if (hugMode === 'side') {
+        const maxHalfDepth = Math.max(personA.userData.depth, personB.userData.depth) * 0.5;
+        walkGroup.position.y = maxHalfDepth;
+    } else {
+        const maxHalfWidth = Math.max(personA.userData.width, personB.userData.width) * 0.5;
+        walkGroup.position.y = maxHalfWidth;
+    }
+    
+    const maxH = Math.max(hA, hB) * 0.01;
+    walkGroup.position.x = -maxH; 
+
+    const nA = document.getElementById('nameA').value || 'A';
+    const nB = document.getElementById('nameB').value || 'B';
+    const myName = (currentView === 'A') ? nA : nB;
+
+    if(currentView !== '3rd') {
+        document.getElementById('view-label').innerText = `${myName} 的视角`;
+        if(currentView === 'A') { personA.headParts.visible = false; personA.nameTag.visible = false; }
+        if(currentView === 'B') { personB.headParts.visible = false; personB.nameTag.visible = false; }
+    } else {
+        document.getElementById('view-label').innerText = '第三人称视角';
+    }
+
+    document.getElementById('info').innerHTML = `
+        <div class="info-row">
+            <span class="info-label">📏 身高差</span>
+            <span class="info-value">${Math.abs(hA-hB).toFixed(1)}<span class="unit">cm</span></span>
+        </div>
+    `;
+}
+
+function animate() {
+    requestAnimationFrame(animate);
+    
+    const eyeA = new THREE.Vector3(); personA.headParts.getWorldPosition(eyeA);
+    const eyeB = new THREE.Vector3(); personB.headParts.getWorldPosition(eyeB);
+    
+    if (hugMode === 'side') {
+        personA.headParts.lookAt(eyeB);
+        personB.headParts.lookAt(eyeA);
+    } else if (hugMode === 'front') {
+        personA.headParts.lookAt(eyeB);
+        personB.headParts.lookAt(eyeA);
+    } else {
+        const forward = new THREE.Vector3(0, 0, 10).applyQuaternion(personA.quaternion).add(eyeA);
+        personA.headParts.lookAt(forward);
+        personB.headParts.lookAt(eyeA);
+    }
+
+    const posA = new THREE.Vector3(); personA.torsoMesh.getWorldPosition(posA);
+    const posB = new THREE.Vector3(); personB.torsoMesh.getWorldPosition(posB);
+    const lookTarget = new THREE.Vector3().addVectors(posA, posB).multiplyScalar(0.5);
+
+    if (currentView === '3rd') {
+        camera.up.set(0, 1, 0);
+        camera.position.set(
+            lookTarget.x + Math.cos(rotation.y) * camDist * Math.cos(rotation.x),
+            lookTarget.y + Math.sin(rotation.x) * camDist,
+            lookTarget.z + Math.sin(rotation.y) * camDist * Math.cos(rotation.x)
+        );
+        camera.lookAt(lookTarget);
+    } else {
+        const self = (currentView === 'A' ? personA : personB);
+        const other = (currentView === 'A' ? personB : personA);
+        
+        const selfEyePos = new THREE.Vector3();
+        self.headParts.getWorldPosition(selfEyePos);
+        
+        const selfEyeDir = new THREE.Vector3(0, 0, 1); 
+        selfEyeDir.applyQuaternion(self.headParts.getWorldQuaternion(new THREE.Quaternion()));
+
+        camera.position.copy(selfEyePos);
+        camera.up.set(0, 1, 0); 
+
+        if (hugMode === 'back' && currentView === 'A') {
+            const targetPos = new THREE.Vector3().addVectors(selfEyePos, selfEyeDir.multiplyScalar(10));
+            camera.lookAt(targetPos);
+        } else {
+            const otherEyePos = new THREE.Vector3();
+            other.headParts.getWorldPosition(otherEyePos);
+            camera.lookAt(otherEyePos);
+        }
+        
+        camera.rotateY(rotation.y);
+        camera.rotateX(rotation.x);
+    }
+    renderer.render(scene, camera);
+}
+
+function setupControls() {
+    const c = document.getElementById('canvas-container');
+    const move = (dx, dy) => { 
+        rotation.y -= dx * 0.005; 
+        rotation.x -= dy * 0.005;
+        if (currentView === '3rd') {
+            rotation.x = Math.max(-Math.PI/2 + 0.01, Math.min(Math.PI/2 - 0.01, rotation.x));
+        }
+    };
+    c.addEventListener('mousedown', () => isDragging = true);
+    window.addEventListener('mouseup', () => isDragging = false);
+    window.addEventListener('mousemove', e => { if(isDragging) move(e.movementX, e.movementY); });
+
+    c.addEventListener('wheel', e => {
+        if (currentView === '3rd') {
+            camDist += e.deltaY * 0.002;
+            camDist = Math.max(0.5, Math.min(10, camDist));
+        }
+    }, { passive: true });
+
+    c.addEventListener('touchstart', e => { 
+        if (e.touches.length === 1) {
+            isDragging = true; 
+            previousTouch = e.touches[0]; 
+            initialPinchDist = null;
+        } else if (e.touches.length === 2 && currentView === '3rd') {
+            isDragging = false;
+            initialPinchDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+        }
+    }, { passive: false });
+
+    window.addEventListener('touchend', () => { 
+        isDragging = false; 
+        initialPinchDist = null;
+    });
+
+    window.addEventListener('touchmove', e => {
+        if (e.touches.length === 1 && isDragging && previousTouch) {
+            if (e.cancelable) e.preventDefault();
+            const touch = e.touches[0];
+            move(touch.clientX - previousTouch.clientX, touch.clientY - previousTouch.clientY);
+            previousTouch = touch;
+        } else if (e.touches.length === 2 && initialPinchDist !== null && currentView === '3rd') {
+            if (e.cancelable) e.preventDefault();
+            const currentDist = Math.hypot(
+                e.touches[0].clientX - e.touches[1].clientX,
+                e.touches[0].clientY - e.touches[1].clientY
+            );
+            const diff = currentDist - initialPinchDist;
+            camDist -= diff * 0.005;
+            camDist = Math.max(0.5, Math.min(10, camDist));
+            initialPinchDist = currentDist;
+        }
+    }, { passive: false });
+}
+
+function switchView() {
+    const order = ['3rd', 'A', 'B'];
+    currentView = order[(order.indexOf(currentView) + 1) % 3];
+    const nA = document.getElementById('nameA').value || 'A';
+    const nB = document.getElementById('nameB').value || 'B';
+    const myName = (currentView === 'A') ? nA : nB;
+
+    if (currentView === '3rd') {
+        document.getElementById('view-label').innerText = '第三人称视角';
+    } else {
+        document.getElementById('view-label').innerText = `${myName} 的视角`;
+    }
+
+    personA.headParts.visible = true; personA.nameTag.visible = true;
+    personB.headParts.visible = true; personB.nameTag.visible = true;
+    if (currentView === 'A') { personA.headParts.visible = false; personA.nameTag.visible = false; }
+    else if (currentView === 'B') { personB.headParts.visible = false; personB.nameTag.visible = false; }
+    rotation.x = 0; rotation.y = 0;
+}
+
+function shareToX() {
+   const nA = document.getElementById('nameA').value || 'A';
+    const nB = document.getElementById('nameB').value || 'B';
+    const hA = parseFloat(document.getElementById('heightA').value) || 158.0;
+    const hB = parseFloat(document.getElementById('heightB').value) || 171.5;
+    const text = `${nA}(${hA.toFixed(1)}cm)和${nB}(${hB.toFixed(1)}cm)在同眠！\n#同眠模拟器\n`;
+    window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(window.location.href)}`, '_blank');
+}
+
+init();
+</script>
+</body>
+</html>

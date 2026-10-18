@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🏠居家约会模拟器</title>
+    <style>
+        :root { --panel-width: 300px; }
+        body { margin: 0; font-family: 'Helvetica Neue', Arial, "Hiragino Kaku Gothic ProN", "Hiragino Sans", Meiryo, sans-serif; background: #ffffff; overflow: hidden; position: fixed; width: 100%; height: 100%; }
+        
+        #ui-panel {
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            width: var(--panel-width);
+            max-height: calc(100vh - 20px);
+            max-height: calc(100dvh - 20px);
+            background: rgba(255, 255, 255, 0.95); 
+            padding: 15px; 
+            padding-bottom: 40px; 
+            border-radius: 15px; 
+            z-index: 100; 
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            overflow-y: auto; 
+            -webkit-overflow-scrolling: touch; 
+            touch-action: pan-y; 
+            border: 1px solid rgba(255,255,255,0.3); 
+            backdrop-filter: blur(10px); 
+            -webkit-backdrop-filter: blur(10px);
+            box-sizing: border-box;
+            transition: all 0.2s ease-out;
+        }
+
+        #ui-panel.collapsed {
+            max-height: none !important;
+            padding: 10px 15px !important;
+            overflow: hidden !important;
+            width: auto;
+            max-width: calc(100vw - 20px);
+        }
+
+        #canvas-container { width: 100%; height: 100%; cursor: move; touch-action: none; position: fixed; top: 0; left: 0; overflow: hidden; }
+
+        @media screen and (max-width: 480px) { 
+            :root { --panel-width: calc(100vw - 20px); }
+            #ui-panel { left: 10px; right: 10px; }
+            #ui-panel.collapsed { right: auto; }
+        }
+        
+        @media screen and (orientation: landscape) and (max-height: 500px) {
+            :root { --panel-width: 260px; }
+            #ui-panel { top: 5px; left: 5px; padding: 10px; max-height: calc(100vh - 10px); }
+            .app-title { font-size: 1.1rem; }
+            .input-group { padding: 8px; margin-bottom: 5px; }
+        }
+
+        .panel-header { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            cursor: pointer; 
+            user-select: none; 
+            gap: 10px; 
+            position: sticky; 
+            top: -15px; 
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 0;
+            margin: -15px -15px 10px -15px;
+            padding-left: 15px;
+            padding-right: 15px;
+            z-index: 10;
+            border-bottom: 1px solid rgba(0,0,0,0.05);
+        }
+        #toggle-text { 
+            font-size: 12px; 
+            font-weight: bold; 
+            color: #666; 
+            background: #eee; 
+            padding: 4px 10px; 
+            border-radius: 10px; 
+            white-space: nowrap; 
+        }
+        .collapsed #ui-content { display: none; }
+
+        .app-title { 
+            font-size: 1.2rem; 
+            margin: 0; 
+            color: #333; 
+            font-weight: bold; 
+            white-space: nowrap; 
+        }
+        .app-description { font-size: 11px; color: #777; margin-top: 8px; margin-bottom: 5px; line-height: 1.5; text-align: center; }
+        
+        .input-group { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; margin-bottom: 10px; }
+        .group-mode { background: #f5f5f5; border: 1px solid #e0e0e0; }
+        .group-a { background: #fff5f0; border: 1px solid #ffe0d0; }
+        .group-b { background: #f0f7ff; border: 1px solid #d0e7ff; }
+        .group-layout { background: #f9f9f9; border: 1px solid #eee; }
+        .section-header { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+        .section-header strong { font-size: 15px; color: #444; }
+        .input-row { display: flex; gap: 8px; align-items: flex-end; width: 100%; }
+        .input-item { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+        .hint { font-size: 10px; color: #999; margin-bottom: 2px; font-weight: bold; }
+        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px; background: white; color: #333; width: 100%; box-sizing: border-box; }
+        
+        .checkbox-container { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #444; cursor: pointer; user-select: none; margin-top: 4px; }
+        .checkbox-container input { width: auto; cursor: pointer; }
+
+        input[type="number"]::-webkit-outer-spin-button,
+        input[type="number"]::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+        input[type="number"] { -moz-appearance: textfield; }
+
+        .color-picker { width: 100%; height: 38px; border: 2px solid #999; border-radius: 4px; cursor: pointer; padding: 0; background: none; appearance: none; -webkit-appearance: none; }
+        
+        .switch-btn { width: 100%; padding: 12px; background: #333; color: white; border: none; border-radius: 25px; font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 14px; -webkit-tap-highlight-color: transparent; margin-bottom: 10px; }
+        .switch-btn:active { background: #000; transform: scale(0.98); }
+        .swap-btn { margin-bottom: 5px; }
+
+        .yt-play-btn { width: auto; padding: 8px 14px; background: #ff0000; color: white; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; white-space: nowrap; box-sizing: border-box; height: 38px; transition: background 0.2s; }
+        .yt-play-btn:active { background: #cc0000; }
+
+        .share-btn { 
+            width: 100%; padding: 12px; background: #000; color: white; border: none; border-radius: 10px; 
+            font-weight: bold; cursor: pointer; transition: 0.2s; font-size: 13px; 
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+            text-decoration: none; margin-top: 10px;
+        }
+        .share-btn:active { transform: scale(0.98); opacity: 0.8; }
+
+        .other-tools-link { margin-top: 20px; padding: 10px; background: #f9f9f9; border-radius: 10px; text-align: center; }
+        .other-tools-link a { text-decoration: none; color: #333; font-size: 12px; font-weight: bold; border: 2px solid #333; padding: 8px 15px; border-radius: 30px; display: inline-block; transition: 0.3s; margin: 4px; }
+        .other-tools-link a:hover { background: #333; color: #fff; }
+
+        .usage-notes { font-size: 10px; color: #999; margin-top: 12px; line-height: 1.5; text-align: center; }
+
+        .info-box { background: #ffffff; padding: 15px; border-radius: 12px; margin-top: 12px; border: 1px solid #eee; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02); }
+        .info-row { display: flex; justify-content: space-between; align-items: baseline; padding: 6px 0; }
+        .info-row:not(:last-child) { border-bottom: 1px dashed #eee; margin-bottom: 4px; }
+        .info-label { color: #555; font-size: 12px; font-weight: bold; display: flex; align-items: center; gap: 4px; }
+        .info-value { font-weight: 800; font-size: 18px; color: #2c3e50; font-variant-numeric: tabular-nums; }
+        .unit { font-size: 11px; margin-left: 3px; color: #7f8c8d; font-weight: normal; }
+        
+        #view-label { 
+            position: absolute; 
+            bottom: 20px; 
+            right: 15px; 
+            background: rgba(0,0,0,0.7); 
+            color: white; 
+            padding: 8px 16px; 
+            border-radius: 20px; 
+            font-size: 12px; 
+            font-weight: bold; 
+            z-index: 90; 
+            pointer-events: none; 
+        }
+        .crosshair { position: absolute; top: 50%; left: 50%; width: 20px; height: 20px; border: 2px solid rgba(0,0,0,0.15); border-radius: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+
+        #orientation-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.9);
+            color: #ffffff;
+            z-index: 99;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+            box-sizing: border-box;
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+        #orientation-overlay .icon {
+            font-size: 48px;
+            margin-bottom: 15px;
+            animation: rotate-hint 2s infinite ease-in-out;
+        }
+        #orientation-overlay p {
+            font-size: 16px;
+            font-weight: bold;
+            line-height: 1.6;
+            margin: 0;
+        }
+        @keyframes rotate-hint {
+            0%, 100% { transform: rotate(0deg); }
+            50% { transform: rotate(-90deg); }
+        }
+    </style>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
+        }
+      }
+    </script>
+</head>
+<body>
+
+<div id="orientation-overlay">
+    <div class="icon">📱</div>
+    <p>请横着拿手机</p>
+</div>
+
+<div id="ui-panel">
+    <div class="panel-header" onclick="togglePanel()">
+        <h1 class="app-title">🏠居家约会模拟器</h1>
+        <span id="toggle-text">关闭</span>
+    </div>
+
+    <div id="ui-content">
+        <p class="app-description">模拟居家约会一起看电视时的体格差。</p>
+
+        <div class="input-group group-a">
+            <div class="section-header"><strong>A</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameA" placeholder="名字A" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.6;"><span class="hint">性别</span><select id="genderA" onchange="updateScene()"><option value="male">男</option><option value="female" selected>女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightA" value="158.0" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.35;"><span class="hint">色</span><input type="color" id="colorA" class="color-picker" value="#ffcc99" oninput="updateScene()"></div>
+            </div>
+        </div>
+
+        <div class="input-group group-b" id="panel-group-b">
+            <div class="section-header"><strong>B</strong></div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">名字</span><input type="text" id="nameB" placeholder="名字B" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.6;"><span class="hint">性别</span><select id="genderB" onchange="updateScene()"><option value="male" selected>男</option><option value="female">女</option></select></div>
+            </div>
+            <div class="input-row">
+                <div class="input-item"><span class="hint">身高 (cm)</span><input type="number" id="heightB" value="171.5" step="0.1" oninput="updateScene()"></div>
+                <div class="input-item" style="flex: 0.35;"><span class="hint">色</span><input type="color" id="colorB" class="color-picker" value="#ffad60" oninput="updateScene()"></div>
+            </div>
+        </div>
+
+        <div class="input-group group-layout">
+            <div class="section-header"><strong>摆放设置</strong></div>
+            <input type="hidden" id="sittingMode" value="bench">
+
+            <div id="distance-container" class="input-item">
+                <span class="hint">两人距离（间隔）<span id="distance-val"></span></span>
+                <input type="range" id="sittingDistance" min="0.3" max="1.5" step="0.01" value="0.75" oninput="updateScene()">
+            </div>
+            <div class="input-item" style="margin-top: 5px;">
+                <span class="hint">房间亮度（灯光）</span>
+                <input type="range" id="ambientLight" min="0.0" max="2.5" step="0.05" value="2.5" oninput="updateScene()">
+            </div>
+            <div class="input-item" style="margin-top: 5px;">
+                <span class="hint">电视播放的YouTube链接</span>
+                <div class="input-row" style="gap: 6px; align-items: center;">
+                    <input type="text" id="youtubeUrl" placeholder="https://www.youtube.com/watch?v=..." oninput="handleYoutubeUrlInput()">
+                    <button class="yt-play-btn" onclick="handleYoutubeUrlInput()">播放</button>
+                </div>
+            </div>
+        </div>
+
+        <div style="padding: 0 5px;">
+            <button class="switch-btn swap-btn" id="btn-swap" onclick="swapAB()">⇄ 交换A与B</button>
+            <button class="switch-btn" onclick="switchView()">🔄 切换视角</button>
+        </div>
+        
+        <div id="info-container">
+            <div class="info-box" id="info"></div>
+            <button class="share-btn" onclick="shareToX()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"></path></svg> 分享结果
+            </button>
+            <div class="other-tools-link">
+                <p style="font-size: 10px; color: #888; margin-bottom: 8px;">也来看看这些❣🤩</p>
+                <a href="../">体格差模拟器一览</a>
+            </div>
+            <div class="usage-notes">
+                截图投稿、加工、描图等请随意享用。<br>
+                ※请勿用于营利或商业用途。
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="view-label">第三人称视角</div>
+<div class="crosshair" id="crosshair" style="display:none;"></div>
+<div id="canvas-container"></div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { CSS3DRenderer, CSS3DObject } from 'three/addons/renderers/CSS3DRenderer.js';
+
+    let scene, camera, renderer, clock;
+    let cssRenderer, youtubeObject, ambientLight, gridHelper, tvLight;
+    let personA, personB, furnitureGroup, stageGroup, tvGroup;
+    let currentView = '3rd';
+    let rotation = { x: 0, y: 0 }, camDist = 2.5, isDragging = false, previousTouch = null;
+    let initialPinchDist = null;
+
+    let videoTexture, tvScreenMesh, videoActive = false;
+    let currentVideoId = '';
+    let loadedVideoId = '';
+
+    const CHAIR_HEIGHT = 0.42;
+    const TV_Z = 1.8, TV_BOARD_H = 0.3, TV_W = 1.2, TV_H = 0.7, TV_D = 0.05;
+
+    function checkOrientationOverlay() {
+        const panel = document.getElementById('ui-panel');
+        const overlay = document.getElementById('orientation-overlay');
+        const isCollapsed = panel.classList.contains('collapsed');
+        const isPortrait = window.innerHeight > window.innerWidth;
+
+        if (isCollapsed && isPortrait) {
+            overlay.style.display = 'flex';
+        } else {
+            overlay.style.display = 'none';
+        }
+    }
+
+    function init() {
+        const container = document.getElementById('canvas-container');
+        const rect = container.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
+
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xffffff);
+        camera = new THREE.PerspectiveCamera(50, width / height, 0.01, 1000);
+        camera.rotation.order = 'YXZ';
+        
+        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        renderer.setSize(width, height);
+        renderer.setClearColor(0x000000, 0);
+        renderer.domElement.style.position = 'absolute';
+        renderer.domElement.style.top = '0';
+        renderer.domElement.style.left = '0';
+        renderer.domElement.style.zIndex = '2';
+        renderer.domElement.style.pointerEvents = 'none';
+
+        cssRenderer = new CSS3DRenderer();
+        cssRenderer.setSize(width, height);
+        cssRenderer.domElement.style.position = 'absolute';
+        cssRenderer.domElement.style.top = '0';
+        cssRenderer.domElement.style.left = '0';
+        cssRenderer.domElement.style.zIndex = '1';
+
+        container.appendChild(cssRenderer.domElement);
+        container.appendChild(renderer.domElement);
+
+        ambientLight = new THREE.HemisphereLight(0xffffff, 0x888888, 2.5);
+        scene.add(ambientLight);
+
+        tvLight = new THREE.SpotLight(0xaaccff, 0);
+        tvLight.position.set(0, TV_BOARD_H + TV_H / 2 + 0.05, TV_Z - 0.1);
+        tvLight.target.position.set(0, CHAIR_HEIGHT + 0.3, 0);
+        tvLight.angle = Math.PI / 2.5;
+        tvLight.penumbra = 0.8;
+        tvLight.distance = 6;
+        scene.add(tvLight);
+        scene.add(tvLight.target);
+
+        gridHelper = new THREE.GridHelper(200, 400, 0xeeeeee, 0xf5f5f5);
+        scene.add(gridHelper);
+
+        stageGroup = new THREE.Group();
+        scene.add(stageGroup);
+
+        furnitureGroup = new THREE.Group();
+        stageGroup.add(furnitureGroup);
+
+        clock = new THREE.Clock();
+        setupControls();
+        setupVideoTexture();
+
+        buildFurnitureOnce();
+
+        window.addEventListener('resize', onWindowResize);
+        window.addEventListener('orientationchange', () => setTimeout(onWindowResize, 300));
+        
+        window.updateScene = updateScene;
+        window.switchView = switchView;
+        window.swapAB = swapAB;
+        window.shareToX = shareToX;
+        window.handleYoutubeUrlInput = handleYoutubeUrlInput;
+        window.togglePanel = () => {
+            const panel = document.getElementById('ui-panel');
+            const text = document.getElementById('toggle-text');
+            panel.classList.toggle('collapsed');
+            text.innerText = panel.classList.contains('collapsed') ? '打开' : '关闭';
+            checkOrientationOverlay();
+        };
+
+        document.querySelectorAll('#ui-panel input, #ui-panel select').forEach(element => {
+            element.addEventListener('blur', () => {
+                const panel = document.getElementById('ui-panel');
+                if (panel) {
+                    panel.scrollTop = 0;
+                }
+                window.scrollTo(0, 0);
+            });
+        });
+
+        updateScene();
+        checkOrientationOverlay();
+        animate();
+    }
+
+    function setupVideoTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 640; canvas.height = 360;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#0a0a0a'; ctx.fillRect(0, 0, 640, 360);
+        ctx.fillStyle = '#444444'; ctx.font = '22px sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('No Video Loaded', 320, 190);
+        videoTexture = new THREE.CanvasTexture(canvas);
+    }
+
+    function extractVideoId(url) {
+        if (!url) return '';
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=|shorts\/)([^#\&\?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : '';
+    }
+
+    function handleYoutubeUrlInput() {
+        const url = document.getElementById('youtubeUrl').value;
+        const videoId = extractVideoId(url);
+        if (videoId && videoId !== currentVideoId) {
+            currentVideoId = videoId;
+            loadYoutubeVideo(videoId);
+        }
+    }
+
+    function loadYoutubeVideo(videoId) {
+        videoActive = true;
+        updateYoutubeIframe();
+        updateScene();
+    }
+
+    function updateYoutubeIframe() {
+        if (!videoActive || !currentVideoId || currentVideoId === loadedVideoId) return;
+
+        if (youtubeObject) {
+            if (youtubeObject.element && youtubeObject.element.parentNode) {
+                youtubeObject.element.parentNode.removeChild(youtubeObject.element);
+            }
+            youtubeObject.removeFromParent();
+            youtubeObject = null;
+        }
+
+        const wrapper = document.createElement('div');
+        const pixelW = 640, pixelH = 360;
+        wrapper.style.width = pixelW + 'px';
+        wrapper.style.height = pixelH + 'px';
+        wrapper.style.background = '#000';
+        wrapper.style.overflow = 'hidden';
+        wrapper.style.boxSizing = 'border-box';
+        wrapper.style.pointerEvents = 'auto';
+
+        const iframe = document.createElement('iframe');
+        // 自動播放ポリシーに適合させるため mute=1 に設定
+        iframe.src = `https://www.youtube.com/embed/${currentVideoId}?autoplay=1&mute=1&loop=1&playlist=${currentVideoId}&controls=1&modestbranding=1&rel=0&playsinline=1&enablejsapi=1`;
+        iframe.style.width = '100%';
+        iframe.style.height = '100%';
+        iframe.style.border = '0';
+        iframe.style.position = 'absolute';
+        iframe.style.top = '0';
+        iframe.style.left = '0';
+        iframe.setAttribute('allow', 'autoplay; encrypted-media');
+        wrapper.appendChild(iframe);
+
+        const obj = new CSS3DObject(wrapper);
+        const screenW = TV_W - 0.04, screenH = TV_H - 0.04;
+        
+        obj.scale.set(screenW / pixelW, screenH / pixelH, 1);
+        obj.position.set(0, TV_BOARD_H + TV_H / 2 + 0.05, TV_Z - TV_D / 2 - 0.001);
+        obj.rotation.y = Math.PI;
+        
+        tvGroup.add(obj);
+        youtubeObject = obj;
+        loadedVideoId = currentVideoId;
+
+        if (tvScreenMesh) {
+            tvScreenMesh.material = new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0, blending: THREE.NoBlending });
+        }
+    }
+
+    function onWindowResize() {
+        const container = document.getElementById('canvas-container');
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const width = rect.width;
+        const height = rect.height;
+
+        camera.aspect = width / height;
+        camera.updateProjectionMatrix();
+        
+        renderer.setSize(width, height);
+        if (cssRenderer) {
+            cssRenderer.setSize(width, height);
+        }
+
+        checkOrientationOverlay();
+    }
+
+    function swapAB() {
+        const fields = ['name', 'gender', 'height', 'color'];
+        fields.forEach(field => {
+            const elA = document.getElementById(field + 'A');
+            const elB = document.getElementById(field + 'B');
+            const tmp = elA.value;
+            elA.value = elB.value;
+            elB.value = tmp;
+        });
+        updateScene();
+    }
+
+    function buildFurnitureOnce() {
+        const sofaMat = new THREE.MeshPhongMaterial({ color: 0x9fabba }); 
+        const cushionMat = new THREE.MeshPhongMaterial({ color: 0x8a99a8 }); 
+        const tvBoardMat = new THREE.MeshPhongMaterial({ color: 0x3e2723 }); 
+        const tvFrameMat = new THREE.MeshPhongMaterial({ color: 0x1a1a1a }); 
+        const tvScreenMat = new THREE.MeshPhongMaterial({ map: videoTexture, color: 0xffffff }); 
+
+        const sofaGroup = new THREE.Group();
+        const sofaWidth = 2.0;
+        const sofaDepth = 0.7;
+        const seatThickness = 0.15;
+        const backHeight = 0.5;
+
+        const seat = new THREE.Mesh(new THREE.BoxGeometry(sofaWidth, seatThickness, sofaDepth), cushionMat);
+        seat.position.y = CHAIR_HEIGHT - seatThickness / 2;
+        sofaGroup.add(seat);
+
+        const back = new THREE.Mesh(new THREE.BoxGeometry(sofaWidth, backHeight, 0.15), sofaMat);
+        back.position.set(0, CHAIR_HEIGHT + backHeight / 2 - seatThickness, -sofaDepth / 2 + 0.075);
+        sofaGroup.add(back);
+
+        const armWidth = 0.15;
+        const armHeight = 0.25;
+        [-1, 1].forEach(side => {
+            const arm = new THREE.Mesh(new THREE.BoxGeometry(armWidth, armHeight, sofaDepth), sofaMat);
+            arm.position.set(side * (sofaWidth / 2 - armWidth / 2), CHAIR_HEIGHT + armHeight / 2 - seatThickness, 0);
+            sofaGroup.add(arm);
+        });
+
+        const base = new THREE.Mesh(new THREE.BoxGeometry(sofaWidth, CHAIR_HEIGHT - seatThickness, sofaDepth - 0.05), sofaMat);
+        base.position.y = (CHAIR_HEIGHT - seatThickness) / 2;
+        sofaGroup.add(base);
+
+        furnitureGroup.add(sofaGroup);
+
+        tvGroup = new THREE.Group();
+        const tvZ = TV_Z; 
+
+        const boardW = 1.6, boardH = TV_BOARD_H, boardD = 0.4;
+        const tvBoard = new THREE.Mesh(new THREE.BoxGeometry(boardW, boardH, boardD), tvBoardMat);
+        tvBoard.position.set(0, boardH / 2, tvZ);
+        tvGroup.add(tvBoard);
+
+        const tvW = TV_W, tvH = TV_H, tvD = TV_D;
+        const tvFrame = new THREE.Mesh(new THREE.BoxGeometry(tvW, tvH, tvD), tvFrameMat);
+        tvFrame.position.set(0, boardH + tvH / 2 + 0.05, tvZ);
+        tvGroup.add(tvFrame);
+
+        tvScreenMesh = new THREE.Mesh(new THREE.BoxGeometry(tvW - 0.04, tvH - 0.04, 0.01), tvScreenMat);
+        tvScreenMesh.position.set(0, boardH + tvH / 2 + 0.05, tvZ - tvD / 2 - 0.001);
+        tvGroup.add(tvScreenMesh);
+
+        const standW = 0.3, standH = 0.05, standD = 0.25;
+        const tvStand = new THREE.Mesh(new THREE.BoxGeometry(standW, standH, standD), tvFrameMat);
+        tvStand.position.set(0, boardH + standH / 2, tvZ);
+        tvGroup.add(tvStand);
+
+        furnitureGroup.add(tvGroup);
+    }
+
+    function createMannequin(color, heightCm, gender, name, role) {
+        const group = new THREE.Group();
+        const h = heightCm * 0.01;
+        const bodyMat = new THREE.MeshPhongMaterial({ color: color, transparent: true, opacity: 0.85 });
+        const eyeMat = new THREE.MeshBasicMaterial({ color: 0x222222 });
+
+        const headH = h * 0.13, neckH = h * 0.05, torsoH = h * 0.37, legH = h * 0.45;
+        const torsoW = (gender === 'male' ? 0.26 : 0.21) * (h/1.7);
+        const torsoDepth = torsoW * 0.5;
+
+        const bodyGroup = new THREE.Group();
+        bodyGroup.position.y = CHAIR_HEIGHT;
+        
+        const torso = new THREE.Mesh(new THREE.BoxGeometry(torsoW, torsoH, torsoDepth), bodyMat);
+        torso.position.y = torsoH * 0.5;
+        bodyGroup.add(torso);
+
+        const neck = new THREE.Mesh(new THREE.CylinderGeometry(headH*0.3, headH*0.3, neckH, 16), bodyMat);
+        neck.position.y = torsoH + (neckH * 0.5);
+        bodyGroup.add(neck);
+
+        const localEyeY = torsoH + neckH + (headH * 0.3);
+        const headBox = new THREE.Group();
+        headBox.position.y = localEyeY;
+        const head = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.8, 16, 16), bodyMat);
+        head.position.y = (headH * 0.5) - (headH * 0.3);
+        headBox.add(head);
+        [-1, 1].forEach(side => {
+            const eye = new THREE.Mesh(new THREE.SphereGeometry(headH * 0.12, 12, 12), eyeMat);
+            eye.position.set(side * (headH * 0.28), (headH * 0.5) - (headH * 0.3), (headH * 0.7));
+            headBox.add(eye);
+        });
+        bodyGroup.add(headBox);
+        group.headParts = headBox;
+
+        group.arms = [];
+        [-1, 1].forEach(side => {
+            const anchor = new THREE.Group();
+            anchor.position.set(side * (torsoW * 0.6), torsoH - (torsoW * 0.15), 0);
+            const armLen = h * 0.38;
+            const mesh = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.3, armLen, torsoW*0.3), bodyMat);
+            mesh.position.y = -armLen * 0.5;
+            anchor.add(mesh);
+            bodyGroup.add(anchor);
+            group.arms.push(anchor);
+        });
+
+        const thighLen = legH * 0.5;
+        [-1, 1].forEach(side => {
+            const thigh = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.4, torsoW*0.4, thighLen), bodyMat);
+            thigh.position.set(side * (torsoW * 0.25), torsoW * 0.2, thighLen * 0.5);
+            bodyGroup.add(thigh);
+            const shin = new THREE.Mesh(new THREE.BoxGeometry(torsoW*0.4, CHAIR_HEIGHT, torsoW*0.4), bodyMat);
+            shin.position.set(side * (torsoW * 0.25), -CHAIR_HEIGHT * 0.5 + (torsoW * 0.2), thighLen);
+            bodyGroup.add(shin);
+        });
+
+        group.add(bodyGroup);
+
+        const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 128;
+        const ctx = canvas.getContext('2d'); ctx.font = "bold 45px sans-serif"; ctx.fillStyle = "#333"; ctx.textAlign = "center";
+        const displayName = name || (role === 'B' ? 'B' : 'A');
+        ctx.fillText(`${displayName} (${heightCm.toFixed(1)}cm)`, 256, 64);
+        const spriteMaterial = new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(canvas) });
+        const sprite = new THREE.Sprite(spriteMaterial);
+        sprite.scale.set(1.5, 0.38, 1); 
+        sprite.position.y = CHAIR_HEIGHT + localEyeY + headH + 0.3; 
+        group.add(sprite);
+        group.nameTag = sprite;
+
+        group.userData = { height: h, eyeY: CHAIR_HEIGHT + localEyeY, role: role, torsoW: torsoW };
+        return group;
+    }
+
+    function updateScene() {
+        const mode = document.getElementById('sittingMode').value;
+        const hA = parseFloat(document.getElementById('heightA').value)||158, hB = parseFloat(document.getElementById('heightB').value)||171.5;
+        let dist = parseFloat(document.getElementById('sittingDistance').value) || 0.75;
+
+        const lightVal = parseFloat(document.getElementById('ambientLight').value);
+        const safeLightVal = isNaN(lightVal) ? 2.5 : lightVal;
+
+        if (ambientLight) {
+            ambientLight.intensity = safeLightVal;
+        }
+
+        if (tvLight) {
+            if (videoActive) {
+                tvLight.intensity = Math.max(1.5, 4.0 - safeLightVal); 
+            } else {
+                tvLight.intensity = 0;
+            }
+        }
+
+        const bgRatio = Math.max(0, Math.min(1, safeLightVal / 2.5));
+        if (scene) {
+            scene.background = new THREE.Color(bgRatio, bgRatio, bgRatio);
+        }
+        if (gridHelper && gridHelper.material) {
+            const grid1Color = new THREE.Color(0xeeeeee).multiplyScalar(bgRatio);
+            const grid2Color = new THREE.Color(0xf5f5f5).multiplyScalar(bgRatio);
+            gridHelper.material.color.copy(grid1Color);
+            gridHelper.material.needsUpdate = true;
+        }
+
+        if(personA) stageGroup.remove(personA);
+        if(personB) stageGroup.remove(personB);
+
+        personA = createMannequin(document.getElementById('colorA').value, hA, document.getElementById('genderA').value, document.getElementById('nameA').value, 'A');
+        personB = createMannequin(document.getElementById('colorB').value, hB, document.getElementById('genderB').value, document.getElementById('nameB').value, 'B');
+        
+        stageGroup.add(personA);
+        stageGroup.add(personB);
+
+        personA.headParts.rotation.set(0, 0, 0);
+        personB.headParts.rotation.set(0, 0, 0);
+
+        const bodyMinDist = (personA.userData.torsoW + personB.userData.torsoW) * 0.5;
+        let safeDist = Math.max(dist, bodyMinDist);
+        
+        let displayDist = safeDist;
+
+        personA.position.set(-safeDist / 2, 0, 0);
+        personA.rotation.set(0, 0, 0);
+        personB.position.set(safeDist / 2, 0, 0);
+        personB.rotation.set(0, 0, 0);
+
+        let shortestDist = displayDist;
+        const widthHalfA = personA.userData.torsoW * 0.5;
+        const widthHalfB = personB.userData.torsoW * 0.5;
+        shortestDist = displayDist - (widthHalfA + widthHalfB);
+        shortestDist = Math.max(0, shortestDist);
+
+        document.getElementById('distance-val').innerText = ` (${Math.round(shortestDist * 100)}cm)`;
+
+        if (personA && personB) {
+            personA.headParts.visible = (currentView !== 'A');
+            personA.nameTag.visible = (currentView !== 'A');
+            personB.headParts.visible = (currentView !== 'B');
+            personB.nameTag.visible = (currentView !== 'B');
+        }
+
+        const nA = document.getElementById('nameA').value||'A', nB = document.getElementById('nameB').value||'B';
+        if (currentView === '3rd') {
+            document.getElementById('view-label').innerText = '第三人称视角';
+        } else {
+            const myName = (currentView === 'A') ? nA : nB;
+            document.getElementById('view-label').innerText = `${myName} 的视角`;
+        }
+        
+        document.getElementById('info').innerHTML = `
+            <div class="info-row"><span class="info-label">📏 全身长度差</span><span class="info-value">${Math.abs(hA-hB).toFixed(1)}<span class="unit">cm</span></span></div>
+            <div class="info-row"><span class="info-label">🪑 座高(目線)差</span><span class="info-value">${(Math.abs(hA - hB) * 0.55).toFixed(1)}<span class="unit">cm</span></span></div>
+        `;
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        if (videoActive && tvLight) {
+            const time = Date.now() * 0.003;
+            const lightVal = parseFloat(document.getElementById('ambientLight').value);
+            const safeLightVal = isNaN(lightVal) ? 2.5 : lightVal;
+            const baseIntensity = Math.max(1.5, 4.0 - safeLightVal);
+            tvLight.intensity = baseIntensity + Math.sin(time * 2.5) * 0.4 + Math.cos(time * 4.1) * 0.2;
+        }
+        
+        const posTV = new THREE.Vector3(0, TV_BOARD_H + TV_H / 2 + 0.05, TV_Z);
+        const posA = new THREE.Vector3().copy(personA.position).add(new THREE.Vector3(0, personA.userData.eyeY, 0));
+        const posB = new THREE.Vector3().copy(personB.position).add(new THREE.Vector3(0, personB.userData.eyeY, 0));
+        
+        const centerPos = new THREE.Vector3(
+            (posA.x + posB.x + posTV.x) / 3,
+            (posA.y + posB.y + posTV.y) / 3,
+            (posA.z + posB.z + posTV.z) / 3
+        );
+        
+        if (personA && personA.headParts) {
+            const localTargetA = posTV.clone();
+            personA.worldToLocal(localTargetA);
+            personA.headParts.lookAt(localTargetA);
+        }
+        if (personB && personB.headParts) {
+            const localTargetB = posTV.clone();
+            personB.worldToLocal(localTargetB);
+            personB.headParts.lookAt(localTargetB);
+        }
+        
+        if (currentView === '3rd') {
+            camera.position.set(
+                centerPos.x + Math.sin(rotation.y) * camDist * Math.cos(rotation.x), 
+                centerPos.y + Math.sin(rotation.x) * camDist, 
+                centerPos.z + Math.cos(rotation.y) * camDist * Math.cos(rotation.x)
+            );
+            camera.lookAt(centerPos);
+        } else {
+            const self = (currentView === 'A' ? personA : personB);
+            const eyePos = new THREE.Vector3().copy(self.position).add(new THREE.Vector3(0, self.userData.eyeY, 0));
+            camera.position.copy(eyePos);
+            
+            const baseTargetRotation = new THREE.Quaternion().setFromEuler(
+                new THREE.Euler(0, self.rotation.y + Math.PI, 0, 'YXZ')
+            );
+            const operationRotation = new THREE.Quaternion().setFromEuler(
+                new THREE.Euler(rotation.x, rotation.y, 0, 'YXZ')
+            );
+            camera.quaternion.copy(baseTargetRotation).multiply(operationRotation);
+        }
+
+        renderer.render(scene, camera);
+        if (cssRenderer) cssRenderer.render(scene, camera);
+    }
+
+    function setupControls() {
+        const move = (dx, dy) => {
+            rotation.y -= dx * 0.005; rotation.x -= dy * 0.005;
+            rotation.x = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, rotation.x));
+        };
+        
+        window.addEventListener('mousedown', (e) => {
+            if(e.target.closest('#ui-panel')) return;
+            isDragging = true;
+        });
+        window.addEventListener('mouseup', () => isDragging = false);
+        window.addEventListener('mousemove', e => { if(isDragging) move(e.movementX, e.movementY); });
+        
+        window.addEventListener('wheel', e => {
+            if(e.target.closest('#ui-panel')) return;
+            if (currentView === '3rd') {
+                camDist += e.deltaY * 0.002;
+                camDist = Math.max(0.5, Math.min(10, camDist));
+            } else {
+                camera.fov += e.deltaY * 0.05;
+                camera.fov = Math.max(20, Math.min(100, camera.fov));
+                camera.updateProjectionMatrix();
+            }
+        }, { passive: true });
+
+        window.addEventListener('touchstart', e => { 
+            if(e.target.closest('#ui-panel')) return;
+            isDragging = true; 
+            if (e.touches.length === 1) {
+                previousTouch = e.touches[0]; 
+                initialPinchDist = null;
+            } else if (e.touches.length === 2) {
+                initialPinchDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        }, { passive: false });
+        window.addEventListener('touchend', () => {
+            isDragging = false;
+            initialPinchDist = null;
+        });
+        window.addEventListener('touchmove', e => {
+            if(!isDragging) return;
+            if (e.touches.length === 1 && previousTouch) {
+                const touch = e.touches[0]; 
+                move(touch.clientX - previousTouch.clientX, touch.clientY - previousTouch.clientY); 
+                previousTouch = touch;
+            } else if (e.touches.length === 2 && initialPinchDist !== null) {
+                const currentDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                const diff = currentDist - initialPinchDist;
+                if (currentView === '3rd') {
+                    camDist -= diff * 0.005;
+                    camDist = Math.max(0.5, Math.min(10, camDist));
+                } else {
+                    camera.fov -= diff * 0.1;
+                    camera.fov = Math.max(20, Math.min(100, camera.fov));
+                    camera.updateProjectionMatrix();
+                }
+                initialPinchDist = currentDist;
+            }
+        }, { passive: false });
+    }
+
+    function switchView() {
+        const order = ['3rd', 'A', 'B'];
+        currentView = order[(order.indexOf(currentView) + 1) % order.length];
+        rotation.x = 0; rotation.y = 0; 
+        if (camera) {
+            camera.fov = 50;
+            camera.updateProjectionMatrix();
+        }
+        updateScene();
+    }
+
+    function shareToX() {
+        const nA = document.getElementById('nameA').value || 'A', nB = document.getElementById('nameB').value || 'B';
+        const hA = parseFloat(document.getElementById('heightA').value) || 158.0, hB = parseFloat(document.getElementById('heightB').value) || 171.5;
+        window.open(`https://twitter.com/intent/tweet?text=${encodeURIComponent(`${nA}(${hA.toFixed(1)}cm)和${nB}(${hB.toFixed(1)}cm)在居家约会！\n#居家约会模拟器`)}&url=${encodeURIComponent(window.location.href)}`, '_blank');
+    }
+
+    init();
+</script>
+</body>
+</html>
